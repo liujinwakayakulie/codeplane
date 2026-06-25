@@ -1,0 +1,17 @@
+# Railway/Nixpacks 部署配置
+#
+# 默认 Nixpacks 看到 package-lock.json 会用 `npm ci`，严格校验 lockfile。
+# 但本项目 lockfile 是 macOS+linux 混合目标生成的，npm 不同版本对
+# platform-specific transitive deps（@emnapi/wasi-threads 1.2.1 vs 1.2.2
+# 之类）的解析结果不一致，导致 npm ci 在 Railway 失败。
+#
+# 改用 `npm install`：容忍 lockfile 跟 package.json 不严格匹配，按需补齐。
+
+[phases.install]
+cmds = ["npm install --no-audit --no-fund"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start"
