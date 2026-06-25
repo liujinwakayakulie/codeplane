@@ -18,5 +18,8 @@ export const SITE_WATERMARK = `$ ${SITE_USER} ~ _`;
 /** 浏览器标签页标题 */
 export const SITE_TITLE = `${SITE_DOMAIN} — 程序员版对线`;
 
+/** 站点完整 URL（含 https://），用于 metadataBase / OpenGraph / 绝对 URL */
+export const SITE_URL = `https://${SITE_DOMAIN}`;
+
 /** Discord 邀请链接（暂未开放，留占位 "#"，后续替换只改这一处） */
 export const SITE_DISCORD_URL = "#";

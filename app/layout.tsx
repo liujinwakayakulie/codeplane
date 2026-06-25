@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { SITE_TITLE } from "@/lib/site";
+import { SITE_TITLE, SITE_URL } from "@/lib/site";
 import { TopNav } from "@/components/layout/TopNav";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 
@@ -12,6 +12,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: "真人实时对线，看谁的反串更像 AI。每次回答消耗 10% 电量。",
 };
