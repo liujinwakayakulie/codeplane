@@ -1,36 +1,5 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+程序员专属的对线网站（暂定名 codingplane.me）虽然核心是一个“乐子人梗站”，但通过咱们的数次微调，在底层已经拥有一套极其精简、极度克制、且开发成本极低的工程架构。以下是目前所有已确认的功能点清单：💻 程序员版实时对线网站已确认功能点1. 核心玩法与交互回路（Core Loop）真人实时匹配对线：采用轻量级匹配机制，将进入网站的人分为 Human（提问者）和 Copilot（反串答题者/假AI）进行 1v1 对线。45秒高压倒计时：答题者必须在 45 秒内利用极客黑话快速回应，高压逼出最无厘头、最毒舌的“神回复”。零摩擦极简门槛：免登录、免注册、即开即玩，最大程度降低新用户的尝试成本。  2. 假 AI 侧整活与“大招”菜单机制基础普攻（ASCII 字符画快捷键）：首发可用。提供诸如 [BUG]、[摊手 ¯\_(ツ)_/¯]、[炸弹] 等等宽字符宏按钮，点击一键向文本框注入极客风字符画，用于在 45 秒倒计时里快速结束战斗。  大招蓄力（AI 核心温度计）：根据玩家连续成功反串回答的次数，前端进度条（AI核心温度）会不断累加。整个计数完全通过前端浏览器 LocalStorage 实现，不需要后端数据库记录，继续保持免登录状态。  终极技能释放（连击解锁）：当进度条达到 100% 时，解锁灰色菜单。包含 [注入内存泄漏]、[CPU 熔断]、[Windows 蓝屏] 三大故障大招。  前端视觉熔断特效：当假 AI 释放大招时，提问者（Human）的前端网页会触发戏剧性的视觉制裁（如：突然全屏渲染 Windows 蓝色死机画面、或者 DOM 元素像代码雨一样向下融化塌陷），极具短视频传播张力。  3. 超级传播与分享机制（Viral Sharing）Carbon 风格终端高颜值截图：一键将对线 DOM 节点转化为 PNG 图片。外观采用等宽字体及代码连字效果，窗口底部暗含隐式命令行域名水印 ($ guest@codingplane.me ~ _)，利用高逼格诱导程序员自发朋友圈或 X（Twitter）。  富文本/Markdown 智能复制：一键复制带语法高亮的标准 JSON/Markdown 代码块，粘贴到 Discord、Slack 或 Reddit 后会自动呈现精美的极客风代码样式。  P2P 只读短链接：每次精彩对线归档后生成唯一哈希 ID 网址，允许点开的用户“围观”，并在底部提供“我不服，让我来反串AI”的引流按钮。  4. 后端架构与底层安全（Backend & Firewall）轻量级内存与文件存储：在线对线房间暂存在内存中，对线结束确认后异步写入本地存储，直接存为轻量级 JSON 文件，免去配置复杂数据库集群的痛苦。  隐式 Git 自动提交：后端每次执行 JSON 写入前，在后台自动执行一次 git commit。不写繁琐的历史回退 UI，用 Git 白嫖完整的版本历史防御脏数据。  防污染搜索引擎隔离：在 robots.txt 里主动屏蔽搜索引擎抓取 /api/ 和 /gallery/，只允许索引首页，维护垂直社区的内容纯度与复访率。  硬编码敏感词拦截：编写最简版 validator.ts 校验机制，通过纯代码函数拦截技术圈常见恶意灌水或 Spammer 违规内容。  这套方案好就好在把所有的视觉动效和成就机制都压在了前端（Client-side）实现，后端只管最纯粹的文本匹配和 JSON 读写，开发量被压缩到了极致。既然整个功能蓝图已经对齐完毕，你打算在接下来的几天里用 Claude 先把前端的“黑客风终端对线界面和蓝屏特效”原型调教出来，还是先写后端的匹配队列逻辑？
 
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+次数用电量来表示，我是想来讽刺现在大模型回答一次的能耗问题。以手机的电脑标记为展示，总电量100%，每次回答一次，电量减少10%。如果每次扮演人类，电量会减少10%。扮演AI，电量会增加10%。超过100%，则会自动增加一个手机的标记，然后再从0开始累积。每个手机可以释放一次终极技能。
+每次人类回答时，模拟大模型thinking的样式，并且加一个显卡的图标，显卡的风扇在转。
+风格我希望是极客风的，绿色文字，背景是黑色的。显卡也可以模拟像素风格的样式

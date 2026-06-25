@@ -1,26 +1,108 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* 终端配色 */
+  --color-background: #000000;
+  --color-foreground: #00ff41;
+  --color-terminal-dim: #008f00;
+  --color-terminal-warn: #ffcc00;
+  --color-terminal-error: #ff0033;
+  --color-terminal-cyan: #00ccff;
+  --color-bsod: #0078d7;
+
+  /* 字体 */
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "Cascadia Code", monospace;
+
+  /* 动画（Tailwind v4 用 --animate-* 暴露成 animate-xxx 工具类） */
+  --animate-fan-spin: fan-spin 0.4s linear infinite;
+  --animate-fan-spin-fast: fan-spin 0.15s linear infinite;
+  --animate-cursor-blink: cursor-blink 1s steps(1) infinite;
+  --animate-pulse-red: pulse-red 0.6s ease-in-out infinite;
+  --animate-screen-fade: screen-fade 1.5s ease-out forwards;
+  --animate-glitch: glitch 0.18s infinite;
+  --animate-melt: melt 1.2s ease-in forwards;
+  --animate-scanline: scanline 8s linear infinite;
+  --animate-flicker: flicker 3s linear infinite;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fan-spin {
+  to { transform: rotate(360deg); }
 }
 
+@keyframes cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes pulse-red {
+  0%, 100% { color: #ff0033; opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@keyframes screen-fade {
+  to { opacity: 0.15; filter: brightness(0.3) saturate(0.5); }
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -1px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 1px); }
+}
+
+@keyframes melt {
+  0% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.7; }
+  94% { opacity: 1; }
+  97% { opacity: 0.85; }
+  98% { opacity: 1; }
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+}
+
+/* CRT 扫描线 + 屏幕弧度感 */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    rgba(0, 255, 65, 0.025) 50%,
+    rgba(0, 0, 0, 0.18) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* 极客化滚动条 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #000; }
+::-webkit-scrollbar-thumb {
+  background: #008f00;
+  border: 1px solid #00ff41;
+}
+::-webkit-scrollbar-thumb:hover { background: #00ff41; }
+
+/* 选区 */
+::selection {
+  background: #00ff41;
+  color: #000;
 }

@@ -1,0 +1,22 @@
+/**
+ * 站点配置 —— 域名/品牌集中管理
+ * 改域名只需要改这一处，所有引用自动跟随
+ */
+
+/** 完整域名（含 TLD），用于 header / watermark / metadata */
+export const SITE_DOMAIN = "codingplane.me";
+
+/** 站点短名（不含 TLD），用于文件名前缀等 */
+export const SITE_NAME = "codingplane";
+
+/** 命令行提示符 user@host，如 "guest@codingplane.me" */
+export const SITE_USER = `guest@${SITE_DOMAIN}`;
+
+/** 终端窗口底部水印，如 "$ guest@codingplane.me ~ _" */
+export const SITE_WATERMARK = `$ ${SITE_USER} ~ _`;
+
+/** 浏览器标签页标题 */
+export const SITE_TITLE = `${SITE_DOMAIN} — 程序员版对线`;
+
+/** Discord 邀请链接（暂未开放，留占位 "#"，后续替换只改这一处） */
+export const SITE_DISCORD_URL = "#";
