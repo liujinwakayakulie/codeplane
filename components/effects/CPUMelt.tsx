@@ -19,7 +19,7 @@ export function CPUMelt({ onDone }: { onDone: () => void }) {
           🔥 CPU 100% 🔥
         </div>
         <p className="text-[#ff0033] text-sm sm:text-base">
-          // 温度 99°C — 风扇已起飞
+          {"// temp 99°C — fans have left the chat"}
         </p>
         <p className="text-[#ffcc00] text-xs sm:text-sm mt-2">
           // thermal throttling engaged

@@ -61,7 +61,7 @@ export const ScreenshotExport = forwardRef<
         link.click();
       } catch (err) {
         console.error("[ScreenshotExport] failed:", err);
-        alert("截图失败，看控制台");
+        alert("Screenshot failed. Check the console.");
       } finally {
         setBusy(false);
       }

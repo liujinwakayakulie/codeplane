@@ -45,7 +45,7 @@ export function BlueScreen({ onDone }: { onDone: () => void }) {
             What failed: <span className="font-bold">copilot.exe</span>
           </p>
           <p className="text-xs opacity-80 mt-2">
-            // 真正的 AI 才不会让你看到这个画面
+            {"// a real AI would never let you see this screen"}
           </p>
         </div>
       </div>

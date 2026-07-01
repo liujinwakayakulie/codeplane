@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SITE_DOMAIN, SITE_WATERMARK } from "@/lib/site";
 
 const LINKS = [
+  { href: "/history", label: "History" },
   { href: "/code-of-conduct", label: "Conduct" },
   { href: "/terms-of-service", label: "Terms" },
   { href: "/privacy-policy", label: "Privacy" },

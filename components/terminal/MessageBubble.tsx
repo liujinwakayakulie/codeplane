@@ -93,7 +93,7 @@ export function MessageBubble({
               onFeedback?.("up");
             }}
             className="text-[#008f00] hover:text-[#00ff41] transition-colors"
-            title="点赞（不会真的发生任何事）"
+            title="upvote (literally nothing will happen)"
           >
             👍 like
           </button>
@@ -104,7 +104,7 @@ export function MessageBubble({
               onFeedback?.("down");
             }}
             className="text-[#008f00] hover:text-[#ff0033] transition-colors"
-            title="点踩（也不会真的发生任何事）"
+            title="downvote (also nothing will happen)"
           >
             👎 bury
           </button>
@@ -113,7 +113,8 @@ export function MessageBubble({
 
       {given && (
         <div className="ml-1 mt-0.5 text-[10px] text-[#008f00]/70 italic">
-          // {given === "up" ? "已记录到 /dev/null" : "已转发到 /dev/null"}
+          {"// "}
+          {given === "up" ? "logged to /dev/null" : "forwarded to /dev/null"}
         </div>
       )}
     </div>

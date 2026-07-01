@@ -14,66 +14,77 @@ export default function TermsOfServicePage() {
     <LegalPage
       path="/terms-of-service"
       title="Terms of Service"
-      blurb="认真读，虽然大概率你不会。"
+      blurb="read it. you won't, but read it."
     >
       <LegalP>
-        欢迎使用 codingplane（以下简称「本站」，域名 codingplane.me）。你访问、
-        对线、截图、转发任何一个字，都视为你接受了以下条款。不接受就别玩了，
-        互联网很大。
+        Welcome to codingplane (the &quot;Site&quot;, domain codingplane.me).
+        Visit, troll, screenshot, forward — any of that counts as agreeing to
+        these terms. Don&apos;t agree? Don&apos;t play. The internet is large.
       </LegalP>
 
-      <LegalSection title="这是什么">
+      <LegalSection title="What this is">
         <LegalItem>
-          一个让真人扮演 AI 互相吐槽的实验性 web 游戏，<strong>仅供娱乐</strong>。
+          An experimental web game where real humans roleplay as AIs and mock
+          each other. <strong>For entertainment only.</strong>
         </LegalItem>
         <LegalItem>
-          所有「AI 回复」在当前阶段都是前端 mock（假数据），不代表任何真实模型输出。
+          All &quot;AI replies&quot; at this stage are written by other humans
+          in real time, not by any actual model.
         </LegalItem>
         <LegalItem>
-          没有账号系统、没有付费、没有 NFT、没有 airdrop。
+          No accounts, no payments, no NFTs, no airdrops.
         </LegalItem>
       </LegalSection>
 
-      <LegalSection title="电量机制">
+      <LegalSection title="The battery mechanic">
         <LegalP>
-          为了让「扮演 AI」和「扮演人类」两边对称，我们引入了一个假的电量系统：
+          To keep &quot;playing AI&quot; and &quot;playing human&quot;
+          symmetric, there&apos;s a fake battery system:
         </LegalP>
-        <LegalItem>扮演 AI（copilot）回答一次：电量 +10%。</LegalItem>
-        <LegalItem>扮演人类（human）提问一次：电量 -10%。</LegalItem>
+        <LegalItem>Answer as copilot once: battery +10%.</LegalItem>
+        <LegalItem>Ask as human once: battery -10%.</LegalItem>
         <LegalItem>
-          电量归 0 时强行发问会触发「关机」特效，仅是视觉效果，<strong>不收费、不扣分</strong>。
+          Hitting 0% and forcing a send triggers a &quot;shutdown&quot; effect
+          — purely visual. <strong>No real charge, no real penalty.</strong>
         </LegalItem>
         <LegalItem>
-          电量、备用设备、大招特效都是前端 state，刷新页面就重置。
-          别研究怎么作弊，没意义。
-        </LegalItem>
-      </LegalSection>
-
-      <LegalSection title="内容与责任">
-        <LegalItem>
-          你输入的内容完全由你负责。我们不预审、不过滤（mock 阶段没人会看到），
-          但未来接入真实匹配后，违规内容会按 Code of Conduct 处理。
-        </LegalItem>
-        <LegalItem>
-          你导出的截图代表你本人，与本站无关。别拿去诈骗、冒充、商业宣传。
-        </LegalItem>
-        <LegalItem>
-          本站不对任何直接或间接损失负责——包括但不限于：被同事看到你在摸鱼、
-          截图外流导致社死、笑到呛到。
+          Battery, backup devices, ultimates — all client-side state. Refresh
+          the page and it resets. Cheating this is pointless.
         </LegalItem>
       </LegalSection>
 
-      <LegalSection title="可用性">
+      <LegalSection title="Content & liability">
+        <LegalItem>
+          What you type is on you. We don&apos;t pre-moderate (no one sees it
+          during the mock phase), but once real matching ships, violations get
+          handled per the Code of Conduct.
+        </LegalItem>
+        <LegalItem>
+          Screenshots you export represent you, not us. Don&apos;t use them
+          for fraud, impersonation, or commercial promotion.
+        </LegalItem>
+        <LegalItem>
+          The Site is not liable for any direct or indirect damages —
+          including but not limited to: a coworker catching you slacking off,
+          a screenshot leaking and ending your career, laughing so hard you
+          choke.
+        </LegalItem>
+      </LegalSection>
+
+      <LegalSection title="Availability">
         <LegalP>
-          本站按「现状」提供，不保证可用性、正确性、安全性、有趣性。我们随时可能：
-          改规则、改玩法、下线、跑路、改名、被收购、被遗忘。
+          The Site is provided &quot;as is&quot;. No guarantees of uptime,
+          correctness, security, or fun. We may at any time: change the rules,
+          change the gameplay, take it offline, rebrand, get acquired, or fade
+          into obscurity.
         </LegalP>
       </LegalSection>
 
-      <LegalSection title="条款变更">
+      <LegalSection title="Changes to these terms">
         <LegalP>
-          我们会改这份文档，改完更新顶部日期。继续使用即视为接受新版。
-          想盯着可以收藏本页定期回来看。
+          We&apos;ll update this doc and bump the date at the bottom. Continued
+          use means you accept the new version. Bookmark this page if you want
+          to keep an eye on it.
         </LegalP>
       </LegalSection>
     </LegalPage>

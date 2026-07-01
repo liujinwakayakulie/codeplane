@@ -174,9 +174,9 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
               type="button"
               onClick={switchRole}
               className="text-[10px] px-1.5 py-0.5 border border-[#008f00] text-[#008f00] hover:bg-[#00ff41]/10 hover:text-[#00ff41] transition-colors"
-              title={`切换为 ${viewRole === "human" ? "COPILOT" : "HUMAN"}`}
+              title={`switch to ${viewRole === "human" ? "COPILOT" : "HUMAN"}`}
             >
-              ↻ 切到{viewRole === "human" ? "COPILOT" : "HUMAN"}
+              {`↻ switch to ${viewRole === "human" ? "COPILOT" : "HUMAN"}`}
             </button>
             {viewRole === "human" && (
               <>
@@ -186,9 +186,9 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
                   onClick={enterSelectMode}
                   disabled={selectMode || selectableMessages.length === 0}
                   className="text-[10px] text-[#00ccff]/80 hover:text-[#00ccff] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  title="选择消息并导出为 PNG"
+                  title="select messages and export as PNG"
                 >
-                  📸 分享
+                  📸 share
                 </button>
               </>
             )}
@@ -293,7 +293,7 @@ function DebugBar({
           {id}
         </button>
       ))}
-      <span className="ml-auto text-[#008f00]/60">// 生产前隐藏</span>
+      <span className="ml-auto text-[#008f00]/60">// hide before prod</span>
     </div>
   );
 }

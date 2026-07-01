@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/components/terminal/MessageBubble";
+import { addConversation } from "@/lib/client/conversationsDb";
 
 /**
  * 实时匹配对线 hook（替代 useMockMatch）
@@ -71,6 +72,15 @@ export function useLiveMatch() {
     currentMatchRef.current = currentPrompt?.matchId ?? null;
   }, [currentPrompt]);
 
+  // 当前 prompt 的文本（copilot 视角，用于 reply 完成时存历史）
+  const currentPromptTextRef = useRef<string>("");
+  useEffect(() => {
+    currentPromptTextRef.current = currentPrompt?.text ?? "";
+  }, [currentPrompt]);
+
+  // human 视角：promptId → 原始 prompt 文本，reply 回来时取出存历史
+  const pendingPromptsRef = useRef<Map<string, string>>(new Map());
+
   // —— EventSource 订阅（mount 一次）——
   useEffect(() => {
     const es = new EventSource(`/api/match/stream?connId=${connId}`);
@@ -97,6 +107,16 @@ export function useLiveMatch() {
 
     const onHumanReply = (e: MessageEvent) => {
       const { promptId, text } = JSON.parse(e.data);
+      // 取出原始提问文本，存到 IndexedDB
+      const promptText = pendingPromptsRef.current.get(promptId);
+      pendingPromptsRef.current.delete(promptId);
+      if (promptText) {
+        void addConversation({
+          role: "human",
+          prompt: promptText,
+          reply: text,
+        }).catch((err) => console.error("[addConversation]", err));
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === `match-${promptId}`
@@ -153,6 +173,7 @@ export function useLiveMatch() {
         });
         const data = (await r.json()) as { ok: boolean; promptId?: string };
         if (data.ok && data.promptId) {
+          pendingPromptsRef.current.set(data.promptId, t);
           setInflightPromptId(data.promptId);
           setMessages((prev) => [
             ...prev,
@@ -242,9 +263,18 @@ export function useLiveMatch() {
     async (text: string) => {
       const t = text.trim();
       const matchId = currentMatchRef.current;
+      const promptText = currentPromptTextRef.current;
       if (!t || !matchId) return;
       setCopilotState("done");
       setAnsweredCount((n) => n + 1);
+      // 存到 IndexedDB（copilot 视角）
+      if (promptText) {
+        void addConversation({
+          role: "copilot",
+          prompt: promptText,
+          reply: t,
+        }).catch((err) => console.error("[addConversation]", err));
+      }
       await fetch("/api/match/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

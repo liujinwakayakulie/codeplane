@@ -14,61 +14,72 @@ export default function PrivacyPolicyPage() {
     <LegalPage
       path="/privacy-policy"
       title="Privacy Policy"
-      blurb="好消息：我们目前几乎不收集你任何东西。"
+      blurb="good news: we basically collect nothing."
     >
       <LegalP>
-        我们也讨厌「用隐私换便利」。codingplane 目前的设计目标就是：
-        <strong>不存账号、不追踪、不分析</strong>。等接入真实匹配后我们会更新这份文档，
-        那时才会涉及真实数据处理。
+        We hate &quot;trading privacy for convenience&quot; too. codingplane
+        is designed to: <strong>no accounts, no tracking, no analytics</strong>.
+        When real matching ships we&apos;ll update this doc — that&apos;s when
+        real data handling kicks in.
       </LegalP>
 
-      <LegalSection title="我们收集什么">
+      <LegalSection title="What we collect">
         <LegalItem>
-          <strong>没有账号</strong>，所以没有 user id、邮箱、密码。
+          <strong>No accounts</strong>, so no user id, no email, no password.
         </LegalItem>
         <LegalItem>
-          没有 cookie（除浏览器本地 storage 里可能存的视角偏好，仅本机）。
+          No cookies (besides browser-local storage for preferences like your
+          role — stays on your device).
         </LegalItem>
         <LegalItem>
-          没有埋点、没有 Google Analytics、没有第三方 tracker。
+          No analytics, no Google Analytics, no third-party trackers.
         </LegalItem>
         <LegalItem>
-          对话内容不离开你的浏览器——目前所有「AI 回复」是写死的前端 mock。
-        </LegalItem>
-      </LegalSection>
-
-      <LegalSection title="我们可能会收到什么（被动）">
-        <LegalItem>
-          托管平台（Vercel/Cloudflare 等）的基础访问日志：IP、UA、时间戳。
-          这部分由平台保留，我们仅在排查故障时查看。
-        </LegalItem>
-        <LegalItem>
-          如果未来接入真实模型 API，你输入的提问会经过我们的服务器转发给模型供应商。
-          这部分上线前我们会单独告知并更新本文档。
+          Conversation content never leaves your browser at this stage. The
+          server only routes messages between players in real time and
+          doesn&apos;t log them.
         </LegalItem>
       </LegalSection>
 
-      <LegalSection title="你主动产生什么">
+      <LegalSection title="What we might receive passively">
         <LegalItem>
-          你输入的对线文本：当前阶段只存在你自己的浏览器内存里，刷新即清空。
+          Basic access logs from our host / CDN (Railway, Cloudflare): IP, User-Agent,
+          timestamp. Kept by the platform; we only look during incident
+          investigation.
         </LegalItem>
         <LegalItem>
-          你点击「分享/截图」后导出的 PNG：由你本地浏览器生成、由你决定发去哪。
-          我们不接收、不存储、不缓存。
+          Browser tab identity (connId) is generated client-side in
+          sessionStorage and used purely for SSE routing. It&apos;s ephemeral,
+          per-tab, and tied to nothing personal.
         </LegalItem>
       </LegalSection>
 
-      <LegalSection title="未成年人">
+      <LegalSection title="What you generate">
+        <LegalItem>
+          Your conversation text: persisted only in your own browser&apos;s
+          IndexedDB. Refresh or clear storage and it&apos;s gone. We never
+          receive it server-side.
+        </LegalItem>
+        <LegalItem>
+          PNG screenshots you export are generated locally in your browser and
+          only leave if you decide to share them. We don&apos;t receive, store,
+          or cache them.
+        </LegalItem>
+      </LegalSection>
+
+      <LegalSection title="Minors">
         <LegalP>
-          本站没有年龄验证，但内容定位是成年人之间的冷幽默。家长如果觉得不合适，
-          别让小孩玩。我们不做 kid-safe 内容过滤。
+          No age verification. The content tone is dry adult humor. If
+          that&apos;s not appropriate for a kid in your care, don&apos;t let
+          them play. We don&apos;t filter kid-safe content.
         </LegalP>
       </LegalSection>
 
-      <LegalSection title="联系">
+      <LegalSection title="Contact">
         <LegalP>
-          隐私相关问题： <code className="text-[#00ccff]">privacy@codingplane.me</code>。
-          读得到，但不一定及时回。
+          Privacy questions:{" "}
+          <code className="text-[#00ccff]">privacy@codingplane.me</code>. We
+          read everything, eventually reply.
         </LegalP>
       </LegalSection>
     </LegalPage>

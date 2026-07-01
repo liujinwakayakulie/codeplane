@@ -14,7 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
-  description: "真人实时对线，看谁的反串更像 AI。每次回答消耗 10% 电量。",
+  description: "Real humans trolling each other like AIs. Every answer burns 10% battery.",
 };
 
 export default function RootLayout({

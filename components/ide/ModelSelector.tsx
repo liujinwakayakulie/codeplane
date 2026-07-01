@@ -20,7 +20,7 @@ export function ModelSelector({
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-[10px] text-[#008f00] tracking-wider">MODEL</span>
         <span className="text-[9px] text-[#008f00]/60">
-          // 选择你的"AI 助手"（消耗倍率越高越能装）
+          {"// pick your \"AI assistant\" (higher burn = more mid)"}
         </span>
       </div>
       <div className="flex gap-1.5 overflow-x-auto pb-1">

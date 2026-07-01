@@ -17,28 +17,28 @@ export default function Home() {
         {BANNER}
       </pre>
       <p className="text-[#008f00] mb-10 text-xs sm:text-sm text-center">
-        // 真人实时对线，看谁的反串更像 AI
+        {"// real-time troll arena. who acts more like an AI?"}
       </p>
 
       <div className="flex flex-col sm:flex-row gap-5 mb-10">
         <RoleButton
           href="/play?role=human"
           label="HUMAN"
-          sub="提问者 / 你来出题"
+          sub="ask the questions"
           accent="#00ff41"
         />
         <RoleButton
           href="/play?role=copilot"
           label="COPILOT"
-          sub="反串 AI / 你来胡答"
+          sub="pretend to be the AI"
           accent="#00ccff"
         />
       </div>
 
       <p className="text-[#008f00] text-[10px] sm:text-xs text-center max-w-md leading-relaxed">
-        免登录 · 即开即玩 · 每次回答消耗 10% 电量
+        {"no login · play instantly · every answer costs 10% battery"}
         <br />
-        扮演 AI 充电 +10%，扮演人类放电 -10%
+        {"playing AI charges +10%, playing human drains -10%"}
       </p>
     </main>
   );

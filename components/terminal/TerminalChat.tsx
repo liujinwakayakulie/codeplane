@@ -114,8 +114,8 @@ export function TerminalChat({
 
   const placeholder =
     role === "copilot"
-      ? "// 反串回答（Enter 换行，点 send 发送，电量 +1）"
-      : "// 提问（Enter 换行，点 send 发送，电量 -1）";
+      ? "// troll answer (Enter = newline, send button to fire, battery +1)"
+      : "// type your question (Enter = newline, send button to fire, battery -1)";
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">

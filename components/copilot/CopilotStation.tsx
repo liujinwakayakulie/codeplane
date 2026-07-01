@@ -84,16 +84,16 @@ export function CopilotStation({
         >
           <div className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-[#00ccff] transition-opacity" />
           <div className="relative text-xl font-bold tracking-widest">
-            [ ▶ 开始等待 ]
+            [ ▶ start waiting ]
           </div>
           <div className="relative text-xs mt-2 opacity-70 group-hover:opacity-100">
-            接人类的提问，反串 AI
+            pick up human prompts, fake being an AI
           </div>
         </button>
         <p className="text-[10px] text-[#008f00] text-center max-w-xs leading-relaxed">
-          {"// 每次回答消耗你 0 电量，反而 +1（充电）"}
+          {"// answering costs 0 battery, you actually gain +1 (charge)"}
           <br />
-          {"// 30 秒内不接活自动跳过"}
+          {"// ignoring a prompt for 30s auto-skips it"}
         </p>
       </div>
     );
@@ -112,7 +112,7 @@ export function CopilotStation({
           onClick={onCancelWaiting}
           className="text-xs text-[#008f00] hover:text-[#ff0033] transition-colors"
         >
-          ✕ 取消等待
+          ✕ cancel waiting
         </button>
       </div>
     );
@@ -208,7 +208,7 @@ export function CopilotStation({
 
       {/* 输入提示 */}
       <div className="px-3 pt-1 text-[10px] text-[#008f00]">
-        {"// your reply (Enter 换行，点 send 发送)"}
+        {"// your reply (Enter = newline, send button to fire)"}
       </div>
 
       {/* 输入框 + send */}
@@ -218,7 +218,7 @@ export function CopilotStation({
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="// 反串 AI 的回答..."
+          placeholder="// fake AI reply..."
           rows={6}
           className="flex-1 bg-transparent outline-none text-[#00ccff] placeholder:text-[#008f00]/60 text-sm leading-relaxed resize-none overflow-y-auto"
           autoComplete="off"

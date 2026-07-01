@@ -20,7 +20,7 @@ export function ScreenShutdown({ onDone }: { onDone: () => void }) {
         </div>
         <p className="text-[#ff0033] text-sm">// battery 0% — device powered off</p>
         <p className="text-[#ff0033] text-xs mt-1">
-          // 就这点电量也敢来对线？
+          {"// 0% battery and you still tried to troll? bold."}
         </p>
         <p className="text-[#008f00] text-xs mt-6 animate-cursor-blink">
           // rebooting in 2s...

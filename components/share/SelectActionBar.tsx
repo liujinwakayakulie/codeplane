@@ -27,14 +27,14 @@ export function SelectActionBar({
   return (
     <div className="shrink-0 flex flex-wrap items-center gap-3 px-3 py-1.5 border-y border-[#00ccff]/50 bg-[#00ccff]/5 text-[11px]">
       <span className="text-[#00ccff] tabular-nums">
-        已选 {selectedCount} / 共 {totalCount} 条
+        {`${selectedCount} / ${totalCount} selected`}
       </span>
       <button
         type="button"
         onClick={allSelected ? onSelectNone : onSelectAll}
         className="text-[#008f00] hover:text-[#00ff41] transition-colors"
       >
-        {allSelected ? "全不选" : "全选"}
+        {allSelected ? "select none" : "select all"}
       </button>
       <span className="ml-auto flex items-center gap-3">
         <button
@@ -42,7 +42,7 @@ export function SelectActionBar({
           onClick={onCancel}
           className="text-[#008f00] hover:text-[#ff0033] transition-colors"
         >
-          ✕ 取消 (esc)
+          ✕ cancel (esc)
         </button>
         <button
           type="button"
@@ -50,7 +50,7 @@ export function SelectActionBar({
           disabled={busy}
           className="text-[#00ccff]/80 hover:text-[#00ccff] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {busy ? "📸 ..." : "📸 生成截图"}
+          {busy ? "📸 ..." : "📸 export png"}
         </button>
       </span>
     </div>

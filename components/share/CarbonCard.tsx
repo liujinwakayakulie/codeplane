@@ -96,7 +96,7 @@ export function CarbonCard({
       <div style={{ fontSize: 14, lineHeight: 1.7 }}>
         {clean.length === 0 && (
           <div style={{ color: "#008f00", fontSize: 13 }}>
-            // 对线太短，先聊两句再截图
+            {"// conversation too short. go troll a bit first."}
           </div>
         )}
         {clean.map((m) => {

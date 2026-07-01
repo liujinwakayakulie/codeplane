@@ -14,20 +14,20 @@ export type Skill = {
 export const SKILLS: Skill[] = [
   {
     id: "blue-screen",
-    label: "[蓝屏]",
-    description: "Windows 蓝屏死机 — Copilot 经典反杀",
+    label: "[BLUESCREEN]",
+    description: "Windows BSOD — the copilot classic finisher",
     durationMs: 4000,
   },
   {
     id: "code-rain",
-    label: "[代码雨]",
-    description: "DOM 像代码雨塌陷 — Matrix 致敬",
+    label: "[CODERAIN]",
+    description: "DOM collapses into Matrix code rain",
     durationMs: 6000,
   },
   {
     id: "cpu-melt",
-    label: "[CPU熔断]",
-    description: "CPU 过载红闪 — 显卡起飞",
+    label: "[CPUMELT]",
+    description: "CPU overload red flash — GPU takes off",
     durationMs: 3000,
   },
 ];

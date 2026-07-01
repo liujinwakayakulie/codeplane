@@ -16,7 +16,7 @@ export const SITE_USER = `guest@${SITE_DOMAIN}`;
 export const SITE_WATERMARK = `$ ${SITE_USER} ~ _`;
 
 /** 浏览器标签页标题 */
-export const SITE_TITLE = `${SITE_DOMAIN} — 程序员版对线`;
+export const SITE_TITLE = `${SITE_DOMAIN} — programmer troll arena`;
 
 /** 站点完整 URL（含 https://），用于 metadataBase / OpenGraph / 绝对 URL */
 export const SITE_URL = `https://${SITE_DOMAIN}`;

@@ -20,8 +20,8 @@ export function TopNav() {
         href={SITE_DISCORD_URL}
         title={
           SITE_DISCORD_URL === "#"
-            ? "Discord 暂未开放"
-            : "加入 Discord"
+            ? "Discord not open yet"
+            : "Join the Discord"
         }
         aria-disabled={SITE_DISCORD_URL === "#"}
         onClick={(e) => {

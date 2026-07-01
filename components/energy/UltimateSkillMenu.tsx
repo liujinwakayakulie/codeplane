@@ -20,7 +20,7 @@ export function UltimateSkillMenu({
 
   return (
     <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-t border-[#008f00] bg-black/60">
-      <span className="text-xs text-[#008f00] mr-1">大招:</span>
+      <span className="text-xs text-[#008f00] mr-1">ultimates:</span>
       {SKILLS.map((s) => (
         <div key={s.id} className="flex flex-col items-center gap-0.5">
           <button
@@ -39,7 +39,7 @@ export function UltimateSkillMenu({
           <button
             type="button"
             onClick={() => onForce(s.id)}
-            title="强制触发（调试用，不消耗次数）"
+            title="force trigger (debug, no charge)"
             className="text-[9px] text-[#ffcc00]/60 hover:text-[#ffcc00] transition-colors"
           >
             ⚡force
@@ -47,7 +47,7 @@ export function UltimateSkillMenu({
         </div>
       ))}
       <span className="ml-auto text-[10px] text-[#008f00]">
-        可用 ×{available}
+        {`×${available} ready`}
       </span>
     </div>
   );
