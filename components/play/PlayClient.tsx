@@ -145,8 +145,6 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
 
   return (
     <main className="flex flex-col flex-1 min-h-0 px-4 py-3 max-w-4xl mx-auto w-full">
-      <DebugBar onForceSkill={(id) => triggerEffect(id, false)} />
-
       <header className="border-b border-[#008f00] pb-2 mb-2 shrink-0">
         <div className="flex justify-between items-center text-xs sm:text-sm mb-2 gap-2">
           <span>
@@ -269,31 +267,5 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
         <ScreenshotExport role="human" ref={exportRef} />
       )}
     </main>
-  );
-}
-
-/** 调试栏 —— 生产前隐藏；提供视角无关的强制大招入口 */
-function DebugBar({
-  onForceSkill,
-}: {
-  onForceSkill: (id: SkillId) => void;
-}) {
-  return (
-    <div className="text-[10px] flex flex-wrap items-center gap-3 px-3 py-1.5 border border-[#ffcc00]/30 bg-[#ffcc00]/5 mb-2 shrink-0">
-      <span className="text-[#ffcc00] tracking-wider">DEBUG</span>
-      <span className="text-[#008f00]">|</span>
-      <span className="text-[#008f00]">force ultimate:</span>
-      {(["blue-screen", "code-rain", "cpu-melt"] as SkillId[]).map((id) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => onForceSkill(id)}
-          className="text-[#ffcc00]/70 hover:text-[#ffcc00] transition-colors"
-        >
-          {id}
-        </button>
-      ))}
-      <span className="ml-auto text-[#008f00]/60">// hide before prod</span>
-    </div>
   );
 }
