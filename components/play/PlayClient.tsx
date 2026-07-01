@@ -85,9 +85,9 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     await reply(text);
   };
 
-  const triggerEffect = (skill: SkillId, consume: boolean) => {
-    if (consume && !energy.canUltimate) return;
-    if (consume) energy.useUltimate();
+  const triggerEffect = (skill: SkillId) => {
+    if (!energy.canUltimate) return;
+    energy.useUltimate();
     setActiveEffect(skill);
   };
 
@@ -238,8 +238,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
             ultimateMenu={
               <UltimateSkillMenu
                 available={energy.availableUltimates}
-                onUse={(id) => triggerEffect(id, true)}
-                onForce={(id) => triggerEffect(id, false)}
+                onUse={triggerEffect}
               />
             }
             onStartWaiting={startWaiting}
