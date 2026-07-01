@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveMatch } from "@/hooks/useLiveMatch";
 import { useEnergy } from "@/hooks/useEnergy";
-import { useIdleRecovery } from "@/hooks/useIdleRecovery";
+import { useIdleRecovery, formatCountdown } from "@/hooks/useIdleRecovery";
 import { TerminalChat } from "@/components/terminal/TerminalChat";
 import { CopilotStation } from "@/components/copilot/CopilotStation";
 import { BatteryBar } from "@/components/energy/BatteryBar";
@@ -57,7 +57,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
 
   const energy = useEnergy();
   // 每 2 分钟挂机兜底 +1 unit（10%），每天最多 10 次
-  useIdleRecovery(() => energy.charge(1));
+  const idle = useIdleRecovery(() => energy.charge(1));
   const [shutdown, setShutdown] = useState(false);
   const [activeEffect, setActiveEffect] = useState<SkillId | null>(null);
 
@@ -200,6 +200,14 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
             <BatteryBar value={energy.currentBatteryPercent} />
             <DeviceBadges count={energy.devices} />
           </div>
+          <span
+            className="text-[10px] text-[#008f00] tabular-nums"
+            title={`Idle recovery: +10% battery every 2 minutes you keep this tab open. Up to ${idle.maxPerDay} times per day.`}
+          >
+            {`⚡ idle ${idle.recoveredToday}/${idle.maxPerDay} · ${
+              idle.remainingToday === 0 ? "done today" : formatCountdown(idle.nextInMs)
+            }`}
+          </span>
         </div>
       </header>
 
