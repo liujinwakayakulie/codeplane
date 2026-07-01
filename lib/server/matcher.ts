@@ -20,7 +20,7 @@ export type ServerEvent =
   | { type: "human:matching"; promptId: string }
   | { type: "human:matched"; promptId: string }
   | { type: "human:reply"; promptId: string; text: string; thinking: boolean }
-  | { type: "human:ultimate"; skill: SkillId }
+  | { type: "human:ultimate"; promptId: string; skill: SkillId }
   | { type: "copilot:prompt"; matchId: string; promptId: string; text: string }
   | { type: "copilot:cancelled"; matchId: string };
 
@@ -144,14 +144,20 @@ class Matcher {
   }
 
   /**
-   * Copilot 对当前 match 的 human 放大招
+   * Copilot 对当前 match 的 human 放大招 = 终结对线
    * 校验：必须是该 match 的 copilot 才能放（防作弊）
-   * 效果：把 skill 推给 human 端，由 human 端渲染特效
+   * 行为：推送 human:ultimate（含 promptId 让客户端替换占位）+ 删除 match
    */
   castUltimate(matchId: string, connId: string, skill: SkillId) {
     const m = this.matches.get(matchId);
     if (!m || m.copilotConnId !== connId) return;
-    this.emit(m.prompt.connId, { type: "human:ultimate", skill });
+    this.emit(m.prompt.connId, {
+      type: "human:ultimate",
+      promptId: m.prompt.id,
+      skill,
+    });
+    this.matches.delete(matchId);
+    this.humans.delete(m.prompt.id);
   }
 
   // —— 内部 ——

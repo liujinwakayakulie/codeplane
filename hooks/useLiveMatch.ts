@@ -174,19 +174,22 @@ export function useLiveMatch(opts: {
     };
 
     const onHumanUltimate = (e: MessageEvent) => {
-      const { skill } = JSON.parse(e.data) as { skill: SkillId };
-      // 塞一条 system 调侃消息到 human 消息流，特效消失后仍保留（方便截图）
+      const { promptId, skill } = JSON.parse(e.data) as {
+        promptId: string;
+        skill: SkillId;
+      };
+      // 把"waiting for reply"占位替换成大招文案（不再追加新消息，保持对话流紧凑）
       const meta = SKILL_MAP[skill];
       if (meta?.castMessage) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ult-${Date.now().toString(36)}-${skill}`,
-            role: "system",
-            text: meta.castMessage,
-          },
-        ]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === `match-${promptId}`
+              ? { ...m, text: meta.castMessage }
+              : m
+          )
+        );
       }
+      setInflightPromptId(null);
       onUltRef.current?.(skill);
     };
 
@@ -342,19 +345,35 @@ export function useLiveMatch(opts: {
   );
 
   /**
-   * Copilot 对当前 match 的 human 放大招
-   * 只 POST，本地不渲染特效（特效在 human 端渲染）
-   * 电量消耗由调用方决定（PlayClient 在 onUse 时 charge 一次）
+   * Copilot 对当前 match 的 human 放大招 = 终结对线
+   * 行为：本地切到 done（短暂闪现）→ 1.5s 后 idle，跟 reply 一致
+   * POST 服务端会删 match，对线关闭；human 端收到 human:ultimate 渲染特效 + 替换占位
    */
   const castUltimate = useCallback(
     async (skill: SkillId) => {
       const matchId = currentMatchRef.current;
+      const promptText = currentPromptTextRef.current;
       if (!matchId) return;
+      setCopilotState("done");
+      setAnsweredCount((n) => n + 1);
+      const meta = SKILL_MAP[skill];
+      // 存到 IndexedDB（copilot 视角，reply 字段记大招文案）
+      if (promptText) {
+        void addConversation({
+          role: "copilot",
+          prompt: promptText,
+          reply: meta?.castMessage ?? `// copilot cast ${skill}`,
+        }).catch((err) => console.error("[addConversation]", err));
+      }
       await fetch("/api/match/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ connId, matchId, action: "ultimate", skill }),
       });
+      setTimeout(() => {
+        setCopilotState("idle");
+        setCurrentPrompt(null);
+      }, 1500);
     },
     [connId]
   );
