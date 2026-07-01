@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/components/terminal/MessageBubble";
-import type { SkillId } from "@/lib/skills";
+import { SKILL_MAP, type SkillId } from "@/lib/skills";
 import { addConversation, listConversations } from "@/lib/client/conversationsDb";
 
 /**
@@ -175,6 +175,18 @@ export function useLiveMatch(opts: {
 
     const onHumanUltimate = (e: MessageEvent) => {
       const { skill } = JSON.parse(e.data) as { skill: SkillId };
+      // 塞一条 system 调侃消息到 human 消息流，特效消失后仍保留（方便截图）
+      const meta = SKILL_MAP[skill];
+      if (meta?.castMessage) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ult-${Date.now().toString(36)}-${skill}`,
+            role: "system",
+            text: meta.castMessage,
+          },
+        ]);
+      }
       onUltRef.current?.(skill);
     };
 
