@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveMatch } from "@/hooks/useLiveMatch";
 import { useEnergy } from "@/hooks/useEnergy";
@@ -100,7 +100,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     void castUltimate(skill);
   };
 
-  const handleEffectDone = () => setActiveEffect(null);
+  const handleEffectDone = useCallback(() => setActiveEffect(null), []);
 
   const lowBat =
     viewRole === "human" &&
