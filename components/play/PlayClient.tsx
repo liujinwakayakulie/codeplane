@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveMatch } from "@/hooks/useLiveMatch";
 import { useEnergy } from "@/hooks/useEnergy";
+import { useIdleRecovery } from "@/hooks/useIdleRecovery";
 import { TerminalChat } from "@/components/terminal/TerminalChat";
 import { CopilotStation } from "@/components/copilot/CopilotStation";
 import { BatteryBar } from "@/components/energy/BatteryBar";
@@ -55,6 +56,8 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
   } = live;
 
   const energy = useEnergy();
+  // 每 2 分钟挂机兜底 +1 unit（10%），每天最多 10 次
+  useIdleRecovery(() => energy.charge(1));
   const [shutdown, setShutdown] = useState(false);
   const [activeEffect, setActiveEffect] = useState<SkillId | null>(null);
 
