@@ -214,6 +214,15 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
               idle.remainingToday === 0 ? "done today" : formatCountdown(idle.nextInMs)
             }`}
           </span>
+          {/* 测试按钮：手动 +10% 电量（生产也保留，方便随时调） */}
+          <button
+            type="button"
+            onClick={() => energy.charge(1)}
+            className="text-[10px] border border-[#ffcc00]/50 text-[#ffcc00]/80 hover:text-[#ffcc00] hover:border-[#ffcc00] px-1.5 py-0.5 transition-colors"
+            title="test: instantly +10% battery"
+          >
+            +10%
+          </button>
         </div>
       </header>
 
