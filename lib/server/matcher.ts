@@ -13,11 +13,14 @@
  * Vercel Serverless 不行——每个请求可能是不同实例，内存不共享。
  */
 
+import type { SkillId } from "@/lib/skills";
+
 export type ServerEvent =
   | { type: "connected"; connId: string }
   | { type: "human:matching"; promptId: string }
   | { type: "human:matched"; promptId: string }
   | { type: "human:reply"; promptId: string; text: string; thinking: boolean }
+  | { type: "human:ultimate"; skill: SkillId }
   | { type: "copilot:prompt"; matchId: string; promptId: string; text: string }
   | { type: "copilot:cancelled"; matchId: string };
 
@@ -140,6 +143,17 @@ class Matcher {
     // 不自动 re-enqueue copilot：用户要求手动按按钮进下一轮
   }
 
+  /**
+   * Copilot 对当前 match 的 human 放大招
+   * 校验：必须是该 match 的 copilot 才能放（防作弊）
+   * 效果：把 skill 推给 human 端，由 human 端渲染特效
+   */
+  castUltimate(matchId: string, connId: string, skill: SkillId) {
+    const m = this.matches.get(matchId);
+    if (!m || m.copilotConnId !== connId) return;
+    this.emit(m.prompt.connId, { type: "human:ultimate", skill });
+  }
+
   // —— 内部 ——
 
   private tryMatch() {
@@ -216,12 +230,20 @@ class Matcher {
 }
 
 // —— 单例：globalThis 锁住，避免 dev HMR 多实例 ——
+// dev 模式下 HMR 会重载 module，新方法可能没附加到旧实例；
+// 用 setPrototypeOf 把最新 Matcher.prototype patch 到旧实例上，状态保留 + 新方法生效
 
 declare global {
   var __matcher: Matcher | undefined;
 }
 
-export const matcher: Matcher = globalThis.__matcher ?? new Matcher();
-if (process.env.NODE_ENV !== "production") {
-  globalThis.__matcher = matcher;
+function getMatcher(): Matcher {
+  if (!globalThis.__matcher) {
+    globalThis.__matcher = new Matcher();
+  } else if (process.env.NODE_ENV !== "production") {
+    Object.setPrototypeOf(globalThis.__matcher, Matcher.prototype);
+  }
+  return globalThis.__matcher;
 }
+
+export const matcher: Matcher = getMatcher();

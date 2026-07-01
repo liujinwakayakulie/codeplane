@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/components/terminal/MessageBubble";
-import { addConversation } from "@/lib/client/conversationsDb";
+import type { SkillId } from "@/lib/skills";
+import { addConversation, listConversations } from "@/lib/client/conversationsDb";
 
 /**
  * 实时匹配对线 hook（替代 useMockMatch）
@@ -45,9 +46,18 @@ function getOrCreateConnId(): string {
   }
 }
 
-export function useLiveMatch() {
+export function useLiveMatch(opts: {
+  /** 收到对手（copilot）发来的大招时调用，consumer 通常用来触发本地特效 */
+  onUltimateReceived?: (skill: SkillId) => void;
+} = {}) {
   const [connId] = useState(getOrCreateConnId);
   const [connected, setConnected] = useState(false);
+
+  // 最新 onUltimateReceived 引用，避免 EventSource effect 重建
+  const onUltRef = useRef(opts.onUltimateReceived);
+  useEffect(() => {
+    onUltRef.current = opts.onUltimateReceived;
+  });
 
   // —— human 视角 ——
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -80,6 +90,30 @@ export function useLiveMatch() {
 
   // human 视角：promptId → 原始 prompt 文本，reply 回来时取出存历史
   const pendingPromptsRef = useRef<Map<string, string>>(new Map());
+
+  // —— mount 时加载历史对话填进 messages（human 视角）——
+  useEffect(() => {
+    let mounted = true;
+    listConversations({ limit: 50 })
+      .then((list) => {
+        if (!mounted) return;
+        // list 是降序（最新在前），反转后按时间升序追加到末尾
+        const historical: ChatMessage[] = [];
+        for (const conv of [...list].reverse()) {
+          historical.push(
+            { id: `${conv.id}-q`, role: "human", text: conv.prompt },
+            { id: `${conv.id}-a`, role: "copilot", text: conv.reply }
+          );
+        }
+        if (historical.length > 0) {
+          setMessages((prev) => [...prev, ...historical]);
+        }
+      })
+      .catch((e) => console.error("[load history]", e));
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // —— EventSource 订阅（mount 一次）——
   useEffect(() => {
@@ -139,12 +173,18 @@ export function useLiveMatch() {
       setCountdown(ACCEPT_SECONDS);
     };
 
+    const onHumanUltimate = (e: MessageEvent) => {
+      const { skill } = JSON.parse(e.data) as { skill: SkillId };
+      onUltRef.current?.(skill);
+    };
+
     es.addEventListener("open", onOpen);
     es.addEventListener("error", onError);
     es.addEventListener("connected", onConnected as EventListener);
     es.addEventListener("human:matching", onHumanMatching as EventListener);
     es.addEventListener("human:matched", onHumanMatched as EventListener);
     es.addEventListener("human:reply", onHumanReply as EventListener);
+    es.addEventListener("human:ultimate", onHumanUltimate as EventListener);
     es.addEventListener("copilot:prompt", onCopilotPrompt as EventListener);
 
     return () => {
@@ -289,6 +329,24 @@ export function useLiveMatch() {
     [connId]
   );
 
+  /**
+   * Copilot 对当前 match 的 human 放大招
+   * 只 POST，本地不渲染特效（特效在 human 端渲染）
+   * 电量消耗由调用方决定（PlayClient 在 onUse 时 charge 一次）
+   */
+  const castUltimate = useCallback(
+    async (skill: SkillId) => {
+      const matchId = currentMatchRef.current;
+      if (!matchId) return;
+      await fetch("/api/match/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connId, matchId, action: "ultimate", skill }),
+      });
+    },
+    [connId]
+  );
+
   const promptInFlight = inflightPromptId !== null;
 
   return {
@@ -309,5 +367,6 @@ export function useLiveMatch() {
     accept,
     skip,
     reply,
+    castUltimate,
   };
 }

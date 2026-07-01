@@ -38,7 +38,14 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
   const [viewRole, setViewRole] = useState<"human" | "copilot">(initialRole);
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID);
 
-  const live = useLiveMatch();
+  const energy = useEnergy();
+  const [shutdown, setShutdown] = useState(false);
+  const [activeEffect, setActiveEffect] = useState<SkillId | null>(null);
+
+  // 收到对端大招 → 直接渲染特效（human 视角；不消耗本地电量）
+  const live = useLiveMatch({
+    onUltimateReceived: (skill) => setActiveEffect(skill),
+  });
   const {
     messages,
     sendPrompt,
@@ -52,14 +59,12 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     accept,
     skip,
     reply,
+    castUltimate,
     connected,
   } = live;
 
-  const energy = useEnergy();
   // 每 2 分钟挂机兜底 +1 unit（10%），每天最多 10 次
   const idle = useIdleRecovery(() => energy.charge(1));
-  const [shutdown, setShutdown] = useState(false);
-  const [activeEffect, setActiveEffect] = useState<SkillId | null>(null);
 
   // 多选分享（仅 human 视角用）
   const [selectMode, setSelectMode] = useState(false);
@@ -88,10 +93,11 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     await reply(text);
   };
 
-  const triggerEffect = (skill: SkillId) => {
+  // —— copilot 放大招：消耗备用手机 + POST 给对手（本地不渲染，human 端会显示）——
+  const handleCastUltimate = (skill: SkillId) => {
     if (!energy.canUltimate) return;
     energy.useUltimate();
-    setActiveEffect(skill);
+    void castUltimate(skill);
   };
 
   const handleEffectDone = () => setActiveEffect(null);
@@ -249,7 +255,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
             ultimateMenu={
               <UltimateSkillMenu
                 available={energy.availableUltimates}
-                onUse={triggerEffect}
+                onUse={handleCastUltimate}
               />
             }
             onStartWaiting={startWaiting}

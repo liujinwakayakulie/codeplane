@@ -60,16 +60,22 @@ export function useIdleRecovery(onRecover: () => void) {
     cbRef.current = onRecover;
   });
 
-  const [recoveredToday, setRecoveredToday] = useState<number>(() => load().recovered);
+  // SSR 用 0（默认值），client mount 后再从 localStorage 读真实值，避免 hydration mismatch
+  const [recoveredToday, setRecoveredToday] = useState<number>(0);
   const [nextInMs, setNextInMs] = useState<number>(INTERVAL_MS);
 
   // ref 持有"上次触发时间"和"上次已知 recovered"，避免 effect 依赖 state 重建 interval
   const lastRecoverAtRef = useRef<number>(0);
-  const knownRecoveredRef = useRef<number>(recoveredToday);
+  const knownRecoveredRef = useRef<number>(0);
 
   useEffect(() => {
-    // 首次进 effect 时初始化 lastRecoverAt（render 期不能调 Date.now()）
-    if (lastRecoverAtRef.current === 0) lastRecoverAtRef.current = Date.now();
+    // 首次进 effect 时：
+    // 1) 从 localStorage 加载真实 recovered 值（client only）
+    // 2) 初始化 lastRecoverAt（render 期不能调 Date.now()）
+    const fresh = load();
+    setRecoveredToday(fresh.recovered);
+    knownRecoveredRef.current = fresh.recovered;
+    lastRecoverAtRef.current = Date.now();
 
     const id = setInterval(() => {
       const fresh = load();
