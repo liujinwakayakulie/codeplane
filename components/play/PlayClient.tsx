@@ -7,6 +7,7 @@ import { useEnergy } from "@/hooks/useEnergy";
 import { useIdleRecovery, formatCountdown } from "@/hooks/useIdleRecovery";
 import { ConnectionOverlay } from "@/components/play/ConnectionOverlay";
 import { useErrorToast } from "@/components/play/ErrorToast";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { TerminalChat } from "@/components/terminal/TerminalChat";
 import { CopilotStation } from "@/components/copilot/CopilotStation";
 import { BatteryBar } from "@/components/energy/BatteryBar";
@@ -186,6 +187,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
             <button
               type="button"
               onClick={switchRole}
+              data-tour="role-switch"
               className="text-[10px] px-1.5 py-0.5 border border-[#008f00] text-[#008f00] hover:bg-[#00ff41]/10 hover:text-[#00ff41] transition-colors"
               title={`switch to ${viewRole === "human" ? "COPILOT" : "HUMAN"}`}
             >
@@ -209,10 +211,13 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-4">
-            <BatteryBar value={energy.currentBatteryPercent} />
+            <div data-tour="battery">
+              <BatteryBar value={energy.currentBatteryPercent} />
+            </div>
             <DeviceBadges count={energy.devices} />
           </div>
           <span
+            data-tour="idle"
             className="text-[10px] text-[#008f00] tabular-nums"
             title={`Idle recovery: +10% battery every 2 minutes you keep this tab open. Up to ${idle.maxPerDay} times per day.`}
           >
@@ -313,6 +318,9 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
 
       {/* 错误 toast */}
       {toast.node}
+
+      {/* 首次访问该角色的引导 */}
+      <OnboardingTour role={viewRole} />
 
       {/* 隐藏的 Carbon 截图节点（仅 human 视角用） */}
       {viewRole === "human" && (

@@ -80,6 +80,7 @@ export function CopilotStation({
         <button
           type="button"
           onClick={onStartWaiting}
+          data-tour="start-waiting"
           className="group relative border-2 border-[#00ccff] text-[#00ccff] px-10 py-6 hover:translate-y-[-2px] transition-all"
         >
           <div className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-[#00ccff] transition-opacity" />

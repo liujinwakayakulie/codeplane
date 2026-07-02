@@ -156,6 +156,7 @@ export function TerminalChat({
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          data-tour="input"
           placeholder={placeholder}
           rows={6}
           className="flex-1 bg-transparent outline-none text-[#00ff41] placeholder:text-[#008f00]/60 text-sm leading-relaxed resize-none overflow-y-auto"
