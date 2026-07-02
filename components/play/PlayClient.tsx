@@ -251,18 +251,20 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
         />
       )}
 
-      {/* 队列状态条（human 等匹配 / copilot 等 prompt 时显示） */}
-      {queueInfo && (
-        <div className="shrink-0 px-3 py-1 text-[10px] text-[#008f00] tabular-nums border-b border-[#008f00]/60 bg-black">
-          {viewRole === "human"
-            ? queueInfo.totalCopilots > 0
-              ? `// queued. ${queueInfo.humansAhead} human${queueInfo.humansAhead === 1 ? "" : "s"} ahead · ${queueInfo.totalCopilots} copilot${queueInfo.totalCopilots === 1 ? "" : "s"} online`
-              : `// waiting for a copilot... nobody online right now`
-            : queueInfo.totalHumans > 0
-              ? `// ${queueInfo.totalHumans} prompt${queueInfo.totalHumans === 1 ? "" : "s"} queued in the pool`
-              : `// pool is empty. you'll be first when a human sends`}
-        </div>
-      )}
+      {/* 队列状态条：仅在当前角色处于"等待中"才显示（避免切换 role 后旧数据残留） */}
+      {queueInfo &&
+        ((viewRole === "human" && promptInFlight) ||
+          (viewRole === "copilot" && copilotState === "waiting")) && (
+          <div className="shrink-0 px-3 py-1 text-[10px] text-[#008f00] tabular-nums border-b border-[#008f00]/60 bg-black">
+            {viewRole === "human"
+              ? queueInfo.totalCopilots > 0
+                ? `// queued. ${queueInfo.humansAhead} human${queueInfo.humansAhead === 1 ? "" : "s"} ahead · ${queueInfo.totalCopilots} copilot${queueInfo.totalCopilots === 1 ? "" : "s"} online`
+                : `// waiting for a copilot... nobody online right now`
+              : queueInfo.totalHumans > 0
+                ? `// ${queueInfo.totalHumans} prompt${queueInfo.totalHumans === 1 ? "" : "s"} queued in the pool`
+                : `// pool is empty. you'll be first when a human sends`}
+          </div>
+        )}
 
       <div
         className={`flex-1 border ${
