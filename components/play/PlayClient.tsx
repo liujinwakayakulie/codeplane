@@ -61,6 +61,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     reply,
     castUltimate,
     connected,
+    queueInfo,
   } = live;
 
   // 每 2 分钟挂机兜底 +1 unit（10%），每天最多 10 次
@@ -238,6 +239,19 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
           onCancel={exitSelectMode}
           onExport={handleExport}
         />
+      )}
+
+      {/* 队列状态条（human 等匹配 / copilot 等 prompt 时显示） */}
+      {queueInfo && (
+        <div className="shrink-0 px-3 py-1 text-[10px] text-[#008f00] tabular-nums border-b border-[#008f00]/60 bg-black">
+          {viewRole === "human"
+            ? queueInfo.totalCopilots > 0
+              ? `// queued. ${queueInfo.humansAhead} human${queueInfo.humansAhead === 1 ? "" : "s"} ahead · ${queueInfo.totalCopilots} copilot${queueInfo.totalCopilots === 1 ? "" : "s"} online`
+              : `// waiting for a copilot... nobody online right now`
+            : queueInfo.totalHumans > 0
+              ? `// ${queueInfo.totalHumans} prompt${queueInfo.totalHumans === 1 ? "" : "s"} queued in the pool`
+              : `// pool is empty. you'll be first when a human sends`}
+        </div>
       )}
 
       <div

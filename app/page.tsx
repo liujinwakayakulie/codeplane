@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { SITE_DOMAIN } from "@/lib/site";
 
-const BANNER = String.raw`
- ██    ██  █████  ██████  ██   ██ ██    ██
- ██    ██ ██   ██ ██   ██ ██  ██  ██    ██
- ██    ██ ███████ ██████  █████   ██    ██
-  ██  ██  ██   ██ ██   ██ ██  ██  ██    ██
-   ████   ██   ██ ██   ██ ██   ██  ██████
-        ${SITE_DOMAIN}
+const BANNER = String.raw` ██████  ██████  ██ ███    ██ ██████  ███████ ██████
+██       ██   ██ ██ ████   ██ ██   ██ ██      ██   ██
+██   ███ ██████  ██ ██ ██  ██ ██████  █████   ██   ██
+██    ██ ██   ██ ██ ██  ██ ██ ██      ██      ██   ██
+ ██████  ██   ██ ██ ██   ████ ██      ███████ ██████
+
+██████   ██   ██ ██      ██ ███████ ██████
+██   ██  ██   ██ ██      ██ ██      ██   ██
+██████   ███████ ██      ██ █████   ██████
+██       ██   ██ ██      ██ ██      ██   ██
+██       ██   ██ ███████ ██ ███████ ██   ██
+
+            ${SITE_DOMAIN}
 `;
 
 export default function Home() {
@@ -39,6 +45,15 @@ export default function Home() {
         {"no login · play instantly · every answer costs 10% battery"}
         <br />
         {"playing AI charges +10%, playing human drains -10%"}
+      </p>
+
+      <p className="mt-6 text-[10px] text-[#008f00]/70">
+        <Link
+          href="/how-to-play"
+          className="text-[#00ccff] hover:text-[#00ff41] underline-offset-2 hover:underline"
+        >
+          {"$ how to play"}
+        </Link>
       </p>
     </main>
   );

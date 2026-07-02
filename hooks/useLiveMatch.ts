@@ -30,6 +30,12 @@ export type CurrentPrompt = {
   text: string;
 };
 
+export type QueueInfo = {
+  humansAhead: number;
+  totalHumans: number;
+  totalCopilots: number;
+};
+
 const ACCEPT_SECONDS = 30;
 
 function getOrCreateConnId(): string {
@@ -75,6 +81,9 @@ export function useLiveMatch(opts: {
   const [currentPrompt, setCurrentPrompt] = useState<CurrentPrompt | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [countdown, setCountdown] = useState(ACCEPT_SECONDS);
+
+  // —— 队列状态（human 等待 prompt 被 copilot 接 / copilot 等 prompt 时显示）——
+  const [queueInfo, setQueueInfo] = useState<QueueInfo | null>(null);
 
   // 用 ref 保存最新的 matchId，避免 stale closure 在倒计时归零时拿不到
   const currentMatchRef = useRef<string | null>(null);
@@ -130,6 +139,7 @@ export function useLiveMatch(opts: {
 
     const onHumanMatched = (e: MessageEvent) => {
       const { promptId } = JSON.parse(e.data);
+      setQueueInfo(null);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === `match-${promptId}`
@@ -137,6 +147,10 @@ export function useLiveMatch(opts: {
             : m
         )
       );
+    };
+
+    const onQueueInfo = (e: MessageEvent) => {
+      setQueueInfo(JSON.parse(e.data) as QueueInfo);
     };
 
     const onHumanReply = (e: MessageEvent) => {
@@ -168,6 +182,7 @@ export function useLiveMatch(opts: {
 
     const onCopilotPrompt = (e: MessageEvent) => {
       const { matchId, promptId, text } = JSON.parse(e.data);
+      setQueueInfo(null);
       setCurrentPrompt({ matchId, promptId, text });
       setCopilotState("received");
       setCountdown(ACCEPT_SECONDS);
@@ -200,6 +215,7 @@ export function useLiveMatch(opts: {
     es.addEventListener("human:matched", onHumanMatched as EventListener);
     es.addEventListener("human:reply", onHumanReply as EventListener);
     es.addEventListener("human:ultimate", onHumanUltimate as EventListener);
+    es.addEventListener("queue-info", onQueueInfo as EventListener);
     es.addEventListener("copilot:prompt", onCopilotPrompt as EventListener);
 
     return () => {
@@ -255,6 +271,7 @@ export function useLiveMatch(opts: {
   const startWaiting = useCallback(async () => {
     if (!connected) return;
     setCopilotState("waiting");
+    setQueueInfo({ humansAhead: 0, totalHumans: 0, totalCopilots: 0 });
     await fetch("/api/match/start-waiting", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -264,6 +281,7 @@ export function useLiveMatch(opts: {
 
   const cancelWaiting = useCallback(async () => {
     setCopilotState("idle");
+    setQueueInfo(null);
     await fetch("/api/match/cancel-waiting", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -399,5 +417,7 @@ export function useLiveMatch(opts: {
     skip,
     reply,
     castUltimate,
+    // 队列状态（两边都用）
+    queueInfo,
   };
 }

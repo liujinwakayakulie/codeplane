@@ -21,6 +21,12 @@ export type ServerEvent =
   | { type: "human:matched"; promptId: string }
   | { type: "human:reply"; promptId: string; text: string; thinking: boolean }
   | { type: "human:ultimate"; promptId: string; skill: SkillId }
+  | {
+      type: "queue-info";
+      humansAhead: number;
+      totalHumans: number;
+      totalCopilots: number;
+    }
   | { type: "copilot:prompt"; matchId: string; promptId: string; text: string }
   | { type: "copilot:cancelled"; matchId: string };
 
@@ -79,6 +85,8 @@ class Matcher {
         this.matches.delete(mid);
       }
     }
+
+    this.broadcastQueueInfo();
   }
 
   // —— 入队 ——
@@ -92,17 +100,20 @@ class Matcher {
     };
     this.humans.set(prompt.id, prompt);
     this.emit(connId, { type: "human:matching", promptId: prompt.id });
+    this.broadcastQueueInfo();
     this.tryMatch();
     return { promptId: prompt.id };
   }
 
   enqueueCopilot(connId: string) {
     this.copilots.set(connId, { connId, enrolledAt: Date.now() });
+    this.broadcastQueueInfo();
     this.tryMatch();
   }
 
   cancelWaiting(connId: string) {
     this.copilots.delete(connId);
+    this.broadcastQueueInfo();
   }
 
   // —— 对局操作 ——
@@ -212,6 +223,7 @@ class Matcher {
         text: prompt.text,
       });
     }
+    this.broadcastQueueInfo();
   }
 
   private emit(connId: string, ev: ServerEvent) {
@@ -232,6 +244,36 @@ class Matcher {
       matches: this.matches.size,
       subscribers: this.subscribers.size,
     };
+  }
+
+  /**
+   * 给所有正在等待的 human/copilot 推送队列状态
+   * humansAhead: 该 human 前面还排着几个 prompt（按入队时间）
+   * totalHumans/totalCopilots: 全局正在等待的人数
+   */
+  private broadcastQueueInfo() {
+    if (this.humans.size === 0 && this.copilots.size === 0) return;
+    const totalH = this.humans.size;
+    const totalC = this.copilots.size;
+    let idx = 0;
+    for (const p of this.humans.values()) {
+      this.emit(p.connId, {
+        type: "queue-info",
+        humansAhead: idx,
+        totalHumans: totalH,
+        totalCopilots: totalC,
+      });
+      idx++;
+    }
+    for (const c of this.copilots.values()) {
+      this.emit(c.connId, {
+        type: "queue-info",
+        // copilot 没有"前面"概念，给 0；consumer 关心 totalHumans（多少 prompt 等接）
+        humansAhead: 0,
+        totalHumans: totalH,
+        totalCopilots: totalC,
+      });
+    }
   }
 }
 
