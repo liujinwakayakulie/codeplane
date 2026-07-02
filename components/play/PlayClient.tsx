@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useLiveMatch } from "@/hooks/useLiveMatch";
 import { useEnergy } from "@/hooks/useEnergy";
 import { useIdleRecovery, formatCountdown } from "@/hooks/useIdleRecovery";
+import { ConnectionOverlay } from "@/components/play/ConnectionOverlay";
+import { useErrorToast } from "@/components/play/ErrorToast";
 import { TerminalChat } from "@/components/terminal/TerminalChat";
 import { CopilotStation } from "@/components/copilot/CopilotStation";
 import { BatteryBar } from "@/components/energy/BatteryBar";
@@ -41,10 +43,12 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
   const energy = useEnergy();
   const [shutdown, setShutdown] = useState(false);
   const [activeEffect, setActiveEffect] = useState<SkillId | null>(null);
+  const toast = useErrorToast();
 
   // 收到对端大招 → 直接渲染特效（human 视角；不消耗本地电量）
   const live = useLiveMatch({
     onUltimateReceived: (skill) => setActiveEffect(skill),
+    onError: (msg) => toast.push(msg),
   });
   const {
     messages,
@@ -61,6 +65,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     reply,
     castUltimate,
     connected,
+    connectionLost,
     queueInfo,
   } = live;
 
@@ -302,6 +307,12 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
       {activeEffect === "cpu-melt" && <CPUMelt onDone={handleEffectDone} />}
 
       {shutdown && <ScreenShutdown onDone={handleShutdownDone} />}
+
+      {/* SSE 断开超过 3s 显示的全屏遮罩 */}
+      <ConnectionOverlay visible={connectionLost} />
+
+      {/* 错误 toast */}
+      {toast.node}
 
       {/* 隐藏的 Carbon 截图节点（仅 human 视角用） */}
       {viewRole === "human" && (

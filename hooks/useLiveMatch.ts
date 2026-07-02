@@ -55,15 +55,23 @@ function getOrCreateConnId(): string {
 export function useLiveMatch(opts: {
   /** 收到对手（copilot）发来的大招时调用，consumer 通常用来触发本地特效 */
   onUltimateReceived?: (skill: SkillId) => void;
+  /** 任何上行 fetch 失败时调用，consumer 通常用来弹 toast */
+  onError?: (msg: string) => void;
 } = {}) {
   const [connId] = useState(getOrCreateConnId);
   const [connected, setConnected] = useState(false);
 
-  // 最新 onUltimateReceived 引用，避免 EventSource effect 重建
+  // 最新 onUltimateReceived / onError 引用，避免 EventSource effect 重建
   const onUltRef = useRef(opts.onUltimateReceived);
+  const onErrRef = useRef(opts.onError);
   useEffect(() => {
     onUltRef.current = opts.onUltimateReceived;
+    onErrRef.current = opts.onError;
   });
+  const report = (label: string, e?: unknown) => {
+    console.error(label, e);
+    onErrRef.current?.(label);
+  };
 
   // —— human 视角 ——
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -125,12 +133,35 @@ export function useLiveMatch(opts: {
   }, []);
 
   // —— EventSource 订阅（mount 一次）——
+  // 断开超过 3s 才认为是真断网（短暂重连不打扰）
+  const [connectionLost, setConnectionLost] = useState(false);
+
   useEffect(() => {
     const es = new EventSource(`/api/match/stream?connId=${connId}`);
 
-    const onOpen = () => setConnected(true);
-    const onError = () => setConnected(false);
-    const onConnected = () => setConnected(true);
+    let lostTimer: ReturnType<typeof setTimeout> | null = null;
+    const onOpen = () => {
+      setConnected(true);
+      setConnectionLost(false);
+      if (lostTimer) {
+        clearTimeout(lostTimer);
+        lostTimer = null;
+      }
+    };
+    const onError = () => {
+      setConnected(false);
+      if (!lostTimer) {
+        lostTimer = setTimeout(() => setConnectionLost(true), 3000);
+      }
+    };
+    const onConnected = () => {
+      setConnected(true);
+      setConnectionLost(false);
+      if (lostTimer) {
+        clearTimeout(lostTimer);
+        lostTimer = null;
+      }
+    };
 
     const onHumanMatching = (e: MessageEvent) => {
       const { promptId } = JSON.parse(e.data);
@@ -221,6 +252,7 @@ export function useLiveMatch(opts: {
     return () => {
       es.close();
       setConnected(false);
+      if (lostTimer) clearTimeout(lostTimer);
     };
   }, [connId]);
 
@@ -256,7 +288,7 @@ export function useLiveMatch(opts: {
           ]);
         }
       } catch (e) {
-        console.error("[sendPrompt]", e);
+        report("[sendPrompt failed]", e);
       }
     },
     [connId, connected]
@@ -272,32 +304,44 @@ export function useLiveMatch(opts: {
     if (!connected) return;
     setCopilotState("waiting");
     setQueueInfo({ humansAhead: 0, totalHumans: 0, totalCopilots: 0 });
-    await fetch("/api/match/start-waiting", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connId }),
-    });
+    try {
+      await fetch("/api/match/start-waiting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connId }),
+      });
+    } catch (e) {
+      report("[startWaiting failed]", e);
+    }
   }, [connId, connected]);
 
   const cancelWaiting = useCallback(async () => {
     setCopilotState("idle");
     setQueueInfo(null);
-    await fetch("/api/match/cancel-waiting", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connId }),
-    });
+    try {
+      await fetch("/api/match/cancel-waiting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connId }),
+      });
+    } catch (e) {
+      report("[cancelWaiting failed]", e);
+    }
   }, [connId]);
 
   const accept = useCallback(async () => {
     const matchId = currentMatchRef.current;
     if (!matchId) return;
     setCopilotState("answering");
-    await fetch("/api/match/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connId, matchId, action: "accept" }),
-    });
+    try {
+      await fetch("/api/match/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connId, matchId, action: "accept" }),
+      });
+    } catch (e) {
+      report("[accept failed]", e);
+    }
   }, [connId]);
 
   const skip = useCallback(async () => {
@@ -305,11 +349,15 @@ export function useLiveMatch(opts: {
     if (!matchId) return;
     setCurrentPrompt(null);
     setCopilotState("waiting");
-    await fetch("/api/match/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ connId, matchId, action: "skip" }),
-    });
+    try {
+      await fetch("/api/match/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connId, matchId, action: "skip" }),
+      });
+    } catch (e) {
+      report("[skip failed]", e);
+    }
   }, [connId]);
 
   // —— 30s accept 倒计时（copilot received 态）——
@@ -346,13 +394,17 @@ export function useLiveMatch(opts: {
           role: "copilot",
           prompt: promptText,
           reply: t,
-        }).catch((err) => console.error("[addConversation]", err));
+        }).catch((err) => report("[addConversation failed]", err));
       }
-      await fetch("/api/match/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId, matchId, action: "reply", text: t }),
-      });
+      try {
+        await fetch("/api/match/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ connId, matchId, action: "reply", text: t }),
+        });
+      } catch (e) {
+        report("[reply failed]", e);
+      }
       // 1.5s 后回 idle
       setTimeout(() => {
         setCopilotState("idle");
@@ -381,13 +433,17 @@ export function useLiveMatch(opts: {
           role: "copilot",
           prompt: promptText,
           reply: meta?.castMessage ?? `// copilot cast ${skill}`,
-        }).catch((err) => console.error("[addConversation]", err));
+        }).catch((err) => report("[addConversation failed]", err));
       }
-      await fetch("/api/match/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId, matchId, action: "ultimate", skill }),
-      });
+      try {
+        await fetch("/api/match/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ connId, matchId, action: "ultimate", skill }),
+        });
+      } catch (e) {
+        report("[castUltimate failed]", e);
+      }
       setTimeout(() => {
         setCopilotState("idle");
         setCurrentPrompt(null);
@@ -401,6 +457,7 @@ export function useLiveMatch(opts: {
   return {
     connId,
     connected,
+    connectionLost,
     // human
     messages,
     promptInFlight,
