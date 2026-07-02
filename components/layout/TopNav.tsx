@@ -18,15 +18,9 @@ export function TopNav() {
       </span>
       <a
         href={SITE_DISCORD_URL}
-        title={
-          SITE_DISCORD_URL === "#"
-            ? "Discord not open yet"
-            : "Join the Discord"
-        }
-        aria-disabled={SITE_DISCORD_URL === "#"}
-        onClick={(e) => {
-          if (SITE_DISCORD_URL === "#") e.preventDefault();
-        }}
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Join the Discord"
         className="border border-[#008f00] px-2 py-0.5 text-[#008f00] hover:bg-[#00ff41]/10 hover:text-[#00ff41] transition-colors"
       >
         ⌁ Discord

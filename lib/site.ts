@@ -22,4 +22,4 @@ export const SITE_TITLE = `${SITE_DOMAIN} — programmer troll arena`;
 export const SITE_URL = `https://${SITE_DOMAIN}`;
 
 /** Discord 邀请链接 */
-export const SITE_DISCORD_URL = "https://discord.gg/nm3t6a5Zf";
+export const SITE_DISCORD_URL: string = "https://discord.gg/nm3t6a5Zf";

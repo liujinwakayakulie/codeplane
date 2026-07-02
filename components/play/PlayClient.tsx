@@ -55,6 +55,7 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
     messages,
     sendPrompt,
     markTypingDone,
+    promptInFlight,
     copilotState,
     currentPrompt,
     countdown,
