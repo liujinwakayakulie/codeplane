@@ -12,6 +12,9 @@ export async function POST(req: Request) {
   if (!connId || typeof text !== "string" || !text.trim()) {
     return Response.json({ ok: false, error: "missing connId/text" }, { status: 400 });
   }
-  const { promptId } = matcher.enqueueHumanPrompt(connId, text.trim().slice(0, 2000));
-  return Response.json({ ok: true, promptId });
+  const result = matcher.enqueueHumanPrompt(connId, text.trim().slice(0, 2000));
+  if (!result.ok) {
+    return Response.json(result, { status: 409 });
+  }
+  return Response.json(result);
 }

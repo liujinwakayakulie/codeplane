@@ -34,18 +34,23 @@ export function useEnergy() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    let nextState = DEFAULT_STATE;
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<EnergyState>;
         if (typeof parsed.counter === "number" && parsed.counter >= 0) {
-          setState({ counter: Math.floor(parsed.counter) });
+          nextState = { counter: Math.floor(parsed.counter) };
         }
       }
     } catch {
       /* ignore corrupt storage */
     }
-    setHydrated(true);
+    const id = setTimeout(() => {
+      setState(nextState);
+      setHydrated(true);
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {

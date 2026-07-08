@@ -9,6 +9,5 @@ export async function POST(req: Request) {
   if (!connId) {
     return Response.json({ ok: false, error: "missing connId" }, { status: 400 });
   }
-  matcher.cancelWaiting(connId);
-  return Response.json({ ok: true });
+  return Response.json(matcher.cancelWaiting(connId));
 }

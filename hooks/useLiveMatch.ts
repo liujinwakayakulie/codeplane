@@ -12,10 +12,9 @@ import { addConversation, listConversations } from "@/lib/client/conversationsDb
  *
  * 两个视角共用一条连接，consumer 按 role 取所需字段。
  *
- * connId 用 sessionStorage：每个 tab = 独立玩家，方便用同浏览器双 tab 自测。
+ * connId 是页面生命周期内随机生成的：每个 tab = 独立玩家。
+ * 不放 sessionStorage，避免复制标签页时两个玩家共享 connId。
  */
-
-const CONN_ID_KEY = "yacb_conn_id";
 
 export type CopilotState =
   | "idle"
@@ -38,18 +37,37 @@ export type QueueInfo = {
 
 const ACCEPT_SECONDS = 30;
 
-function getOrCreateConnId(): string {
-  if (typeof window === "undefined") return "ssr";
-  try {
-    let id = sessionStorage.getItem(CONN_ID_KEY);
-    if (!id) {
-      id = `c_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-      sessionStorage.setItem(CONN_ID_KEY, id);
-    }
-    return id;
-  } catch {
-    return `c_${Math.random().toString(36).slice(2, 10)}`;
+type ApiResult<T extends object = object> =
+  | ({ ok: true } & T)
+  | { ok: false; error: string };
+
+function createConnId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `c_${crypto.randomUUID()}`;
   }
+  return `c_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+}
+
+async function postJson<T extends object = object>(
+  url: string,
+  body: Record<string, unknown>
+): Promise<ApiResult<T>> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+  } & Partial<T>;
+  if (!res.ok || data.ok !== true) {
+    return {
+      ok: false,
+      error: data.ok === false && data.error ? data.error : `request failed (${res.status})`,
+    };
+  }
+  return data as ApiResult<T>;
 }
 
 export function useLiveMatch(opts: {
@@ -58,7 +76,7 @@ export function useLiveMatch(opts: {
   /** 任何上行 fetch 失败时调用，consumer 通常用来弹 toast */
   onError?: (msg: string) => void;
 } = {}) {
-  const [connId] = useState(getOrCreateConnId);
+  const [connId] = useState(createConnId);
   const [connected, setConnected] = useState(false);
 
   // 最新 onUltimateReceived / onError 引用，避免 EventSource effect 重建
@@ -166,6 +184,13 @@ export function useLiveMatch(opts: {
     const onHumanMatching = (e: MessageEvent) => {
       const { promptId } = JSON.parse(e.data);
       setInflightPromptId(promptId);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === `match-${promptId}`
+            ? { ...m, role: "system", text: "// matching..." }
+            : m
+        )
+      );
     };
 
     const onHumanMatched = (e: MessageEvent) => {
@@ -219,6 +244,18 @@ export function useLiveMatch(opts: {
       setCountdown(ACCEPT_SECONDS);
     };
 
+    const onCopilotCancelled = (e: MessageEvent) => {
+      const { matchId, reason } = JSON.parse(e.data) as {
+        matchId: string;
+        reason?: string;
+      };
+      if (currentMatchRef.current !== matchId) return;
+      setCurrentPrompt(null);
+      setCopilotState("waiting");
+      setQueueInfo({ humansAhead: 0, totalHumans: 0, totalCopilots: 0 });
+      onErrRef.current?.(reason ? `match cancelled: ${reason}` : "match cancelled");
+    };
+
     const onHumanUltimate = (e: MessageEvent) => {
       const { promptId, skill } = JSON.parse(e.data) as {
         promptId: string;
@@ -248,6 +285,10 @@ export function useLiveMatch(opts: {
     es.addEventListener("human:ultimate", onHumanUltimate as EventListener);
     es.addEventListener("queue-info", onQueueInfo as EventListener);
     es.addEventListener("copilot:prompt", onCopilotPrompt as EventListener);
+    es.addEventListener(
+      "copilot:cancelled",
+      onCopilotCancelled as EventListener
+    );
 
     return () => {
       es.close();
@@ -259,36 +300,38 @@ export function useLiveMatch(opts: {
   // —— 上行操作 ——
 
   const sendPrompt = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<boolean> => {
       const t = text.trim();
-      if (!t || !connected) return;
-      // 乐观：先加人类消息 + 占位 system
-      const tempId = `h_${Date.now().toString(36)}`;
-      setMessages((prev) => [
-        ...prev,
-        { id: tempId, role: "human", text: t },
-      ]);
+      if (!t) return false;
+      if (!connected) {
+        report("[sendPrompt failed] connection is not ready");
+        return false;
+      }
       try {
-        const r = await fetch("/api/match/prompt", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ connId, text: t }),
+        const data = await postJson<{ promptId: string }>("/api/match/prompt", {
+          connId,
+          text: t,
         });
-        const data = (await r.json()) as { ok: boolean; promptId?: string };
-        if (data.ok && data.promptId) {
-          pendingPromptsRef.current.set(data.promptId, t);
-          setInflightPromptId(data.promptId);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `match-${data.promptId}`,
-              role: "system",
-              text: "// matching...",
-            },
-          ]);
+        if (!data.ok) {
+          report(`[sendPrompt failed] ${data.error}`);
+          return false;
         }
+
+        pendingPromptsRef.current.set(data.promptId, t);
+        setInflightPromptId(data.promptId);
+        setMessages((prev) => [
+          ...prev,
+          { id: `h_${Date.now().toString(36)}`, role: "human", text: t },
+          {
+            id: `match-${data.promptId}`,
+            role: "system",
+            text: "// matching...",
+          },
+        ]);
+        return true;
       } catch (e) {
         report("[sendPrompt failed]", e);
+        return false;
       }
     },
     [connId, connected]
@@ -300,63 +343,89 @@ export function useLiveMatch(opts: {
     );
   }, []);
 
-  const startWaiting = useCallback(async () => {
-    if (!connected) return;
+  const startWaiting = useCallback(async (): Promise<boolean> => {
+    if (!connected) {
+      report("[startWaiting failed] connection is not ready");
+      return false;
+    }
     setCopilotState("waiting");
     setQueueInfo({ humansAhead: 0, totalHumans: 0, totalCopilots: 0 });
     try {
-      await fetch("/api/match/start-waiting", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId }),
-      });
+      const data = await postJson("/api/match/start-waiting", { connId });
+      if (!data.ok) {
+        setCopilotState("idle");
+        setQueueInfo(null);
+        report(`[startWaiting failed] ${data.error}`);
+        return false;
+      }
+      return true;
     } catch (e) {
+      setCopilotState("idle");
+      setQueueInfo(null);
       report("[startWaiting failed]", e);
+      return false;
     }
   }, [connId, connected]);
 
-  const cancelWaiting = useCallback(async () => {
+  const cancelWaiting = useCallback(async (): Promise<boolean> => {
     setCopilotState("idle");
     setQueueInfo(null);
     try {
-      await fetch("/api/match/cancel-waiting", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId }),
-      });
+      const data = await postJson("/api/match/cancel-waiting", { connId });
+      if (!data.ok) {
+        report(`[cancelWaiting failed] ${data.error}`);
+        return false;
+      }
+      return true;
     } catch (e) {
       report("[cancelWaiting failed]", e);
+      return false;
     }
   }, [connId]);
 
-  const accept = useCallback(async () => {
+  const accept = useCallback(async (): Promise<boolean> => {
     const matchId = currentMatchRef.current;
-    if (!matchId) return;
+    if (!matchId) return false;
     setCopilotState("answering");
     try {
-      await fetch("/api/match/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId, matchId, action: "accept" }),
+      const data = await postJson("/api/match/action", {
+        connId,
+        matchId,
+        action: "accept",
       });
+      if (!data.ok) {
+        setCurrentPrompt(null);
+        setCopilotState("waiting");
+        report(`[accept failed] ${data.error}`);
+        return false;
+      }
+      return true;
     } catch (e) {
+      setCopilotState("received");
       report("[accept failed]", e);
+      return false;
     }
   }, [connId]);
 
-  const skip = useCallback(async () => {
+  const skip = useCallback(async (): Promise<boolean> => {
     const matchId = currentMatchRef.current;
-    if (!matchId) return;
+    if (!matchId) return false;
     setCurrentPrompt(null);
     setCopilotState("waiting");
     try {
-      await fetch("/api/match/action", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ connId, matchId, action: "skip" }),
+      const data = await postJson("/api/match/action", {
+        connId,
+        matchId,
+        action: "skip",
       });
+      if (!data.ok) {
+        report(`[skip failed] ${data.error}`);
+        return false;
+      }
+      return true;
     } catch (e) {
       report("[skip failed]", e);
+      return false;
     }
   }, [connId]);
 
@@ -364,7 +433,6 @@ export function useLiveMatch(opts: {
   // 注意：必须在 skip 声明之后调用
   useEffect(() => {
     if (copilotState !== "received" || !currentPrompt) return;
-    setCountdown(ACCEPT_SECONDS);
     const start = Date.now();
     const id = setInterval(() => {
       const next = Math.max(
@@ -381,14 +449,28 @@ export function useLiveMatch(opts: {
   }, [copilotState, currentPrompt, skip]);
 
   const reply = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<boolean> => {
       const t = text.trim();
       const matchId = currentMatchRef.current;
       const promptText = currentPromptTextRef.current;
-      if (!t || !matchId) return;
+      if (!t || !matchId) return false;
+      try {
+        const data = await postJson("/api/match/action", {
+          connId,
+          matchId,
+          action: "reply",
+          text: t,
+        });
+        if (!data.ok) {
+          report(`[reply failed] ${data.error}`);
+          return false;
+        }
+      } catch (e) {
+        report("[reply failed]", e);
+        return false;
+      }
       setCopilotState("done");
       setAnsweredCount((n) => n + 1);
-      // 存到 IndexedDB（copilot 视角）
       if (promptText) {
         void addConversation({
           role: "copilot",
@@ -396,20 +478,12 @@ export function useLiveMatch(opts: {
           reply: t,
         }).catch((err) => report("[addConversation failed]", err));
       }
-      try {
-        await fetch("/api/match/action", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ connId, matchId, action: "reply", text: t }),
-        });
-      } catch (e) {
-        report("[reply failed]", e);
-      }
       // 1.5s 后回 idle
       setTimeout(() => {
         setCopilotState("idle");
         setCurrentPrompt(null);
       }, 1500);
+      return true;
     },
     [connId]
   );
@@ -420,14 +494,28 @@ export function useLiveMatch(opts: {
    * POST 服务端会删 match，对线关闭；human 端收到 human:ultimate 渲染特效 + 替换占位
    */
   const castUltimate = useCallback(
-    async (skill: SkillId) => {
+    async (skill: SkillId): Promise<boolean> => {
       const matchId = currentMatchRef.current;
       const promptText = currentPromptTextRef.current;
-      if (!matchId) return;
+      if (!matchId) return false;
+      const meta = SKILL_MAP[skill];
+      try {
+        const data = await postJson("/api/match/action", {
+          connId,
+          matchId,
+          action: "ultimate",
+          skill,
+        });
+        if (!data.ok) {
+          report(`[castUltimate failed] ${data.error}`);
+          return false;
+        }
+      } catch (e) {
+        report("[castUltimate failed]", e);
+        return false;
+      }
       setCopilotState("done");
       setAnsweredCount((n) => n + 1);
-      const meta = SKILL_MAP[skill];
-      // 存到 IndexedDB（copilot 视角，reply 字段记大招文案）
       if (promptText) {
         void addConversation({
           role: "copilot",
@@ -435,19 +523,11 @@ export function useLiveMatch(opts: {
           reply: meta?.castMessage ?? `// copilot cast ${skill}`,
         }).catch((err) => report("[addConversation failed]", err));
       }
-      try {
-        await fetch("/api/match/action", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ connId, matchId, action: "ultimate", skill }),
-        });
-      } catch (e) {
-        report("[castUltimate failed]", e);
-      }
       setTimeout(() => {
         setCopilotState("idle");
         setCurrentPrompt(null);
       }, 1500);
+      return true;
     },
     [connId]
   );

@@ -86,26 +86,26 @@ export function PlayClient({ role: initialRole }: { role: "human" | "copilot" })
   };
 
   // —— human 发问：电量结算 ——
-  const handleHumanSend = (text: string) => {
+  const handleHumanSend = async (text: string) => {
     if (energy.willShutdown) {
       setShutdown(true);
       return;
     }
-    energy.discharge();
-    void sendPrompt(text);
+    const ok = await sendPrompt(text);
+    if (ok) energy.discharge();
   };
 
   // —— copilot 答完：电量结算 ——
   const handleCopilotReply = async (text: string) => {
-    energy.charge();
-    await reply(text);
+    const ok = await reply(text);
+    if (ok) energy.charge();
   };
 
   // —— copilot 放大招：消耗备用手机 + POST 给对手（本地不渲染，human 端会显示）——
-  const handleCastUltimate = (skill: SkillId) => {
+  const handleCastUltimate = async (skill: SkillId) => {
     if (!energy.canUltimate) return;
-    energy.useUltimate();
-    void castUltimate(skill);
+    const ok = await castUltimate(skill);
+    if (ok) energy.useUltimate();
   };
 
   const handleEffectDone = useCallback(() => setActiveEffect(null), []);

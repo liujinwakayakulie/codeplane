@@ -22,10 +22,10 @@ export function CPUMelt({ onDone }: { onDone: () => void }) {
           {"// temp 99°C — fans have left the chat"}
         </p>
         <p className="text-[#ffcc00] text-xs sm:text-sm mt-2">
-          // thermal throttling engaged
+          {"// thermal throttling engaged"}
         </p>
         <p className="text-[#008f00] text-[10px] mt-8 animate-cursor-blink">
-          // cooling down...
+          {"// cooling down..."}
         </p>
       </div>
     </div>

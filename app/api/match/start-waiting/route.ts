@@ -9,6 +9,9 @@ export async function POST(req: Request) {
   if (!connId) {
     return Response.json({ ok: false, error: "missing connId" }, { status: 400 });
   }
-  matcher.enqueueCopilot(connId);
-  return Response.json({ ok: true });
+  const result = matcher.enqueueCopilot(connId);
+  if (!result.ok) {
+    return Response.json(result, { status: 409 });
+  }
+  return Response.json(result);
 }

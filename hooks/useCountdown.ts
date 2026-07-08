@@ -15,7 +15,8 @@ export function useCountdown(
   active: boolean,
   onEnd?: () => void
 ) {
-  const [remaining, setRemaining] = useState(seconds);
+  const stateKey = `${roundKey}:${seconds}`;
+  const [state, setState] = useState({ key: stateKey, remaining: seconds });
   const onEndRef = useRef(onEnd);
   useEffect(() => {
     onEndRef.current = onEnd;
@@ -23,20 +24,18 @@ export function useCountdown(
 
   useEffect(() => {
     if (!active) return;
-    setRemaining(seconds);
     const start = Date.now();
     const id = setInterval(() => {
       const elapsed = (Date.now() - start) / 1000;
       const next = Math.max(0, Math.ceil(seconds - elapsed));
-      setRemaining(next);
+      setState({ key: stateKey, remaining: next });
       if (next <= 0) {
         clearInterval(id);
         onEndRef.current?.();
       }
     }, 100);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundKey, active]);
+  }, [active, seconds, stateKey]);
 
-  return { remaining };
+  return { remaining: state.key === stateKey ? state.remaining : seconds };
 }

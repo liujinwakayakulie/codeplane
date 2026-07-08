@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 
 /**
  * Windows 蓝屏全屏覆盖（4s 自毁）
@@ -12,13 +12,9 @@ export function BlueScreen({ onDone }: { onDone: () => void }) {
     return () => clearTimeout(t);
   }, [onDone]);
 
-  // 假二维码（随机像素方格）
-  const qrCells = useMemo(
-    () =>
-      Array.from({ length: 144 }).map(() =>
-        Math.random() > 0.45 ? "#fff" : "transparent"
-      ),
-    []
+  // 假二维码（确定性像素方格，避免 render 阶段随机数）
+  const qrCells = Array.from({ length: 144 }).map((_, i) =>
+    (i * 17 + Math.floor(i / 12) * 31) % 7 > 2 ? "#fff" : "transparent"
   );
 
   return (

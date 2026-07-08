@@ -31,8 +31,19 @@ export function useConversations() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let mounted = true;
+    listConversations({ limit: 200 })
+      .then((list) => {
+        if (mounted) setConversations(list);
+      })
+      .catch((e) => console.error("[useConversations] list failed:", e))
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const add = useCallback(
     async (input: Omit<Conversation, "id" | "createdAt">) => {

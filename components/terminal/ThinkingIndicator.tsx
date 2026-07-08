@@ -30,7 +30,7 @@ export function ThinkingIndicator({ fanSize = 14 }: { fanSize?: number }) {
   return (
     <div className="flex items-center gap-3 py-2 text-[#008f00] text-sm">
       <PixelGPU fanSize={fanSize} fast />
-      <span className="italic">// thinking... {THINKING_PHRASES[i]}</span>
+      <span className="italic">{"// thinking... "}{THINKING_PHRASES[i]}</span>
       <span className="animate-cursor-blink text-[#00ff41]">▋</span>
     </div>
   );

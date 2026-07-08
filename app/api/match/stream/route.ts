@@ -34,7 +34,7 @@ export async function GET(req: Request) {
         }
       };
 
-      matcher.enroll(connId, send);
+      const subscriptionId = matcher.enroll(connId, send);
       send({ type: "connected", connId });
 
       const heartbeat = setInterval(() => {
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
 
       const cleanup = () => {
         clearInterval(heartbeat);
-        matcher.withdraw(connId);
+        matcher.withdraw(connId, subscriptionId);
         try {
           controller.close();
         } catch {

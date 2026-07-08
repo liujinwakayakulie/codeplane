@@ -6,6 +6,13 @@ export const runtime = "nodejs";
 
 const VALID_SKILLS: SkillId[] = ["blue-screen", "code-rain", "cpu-melt"];
 
+function actionResponse(result: { ok: boolean; error?: string }) {
+  if (!result.ok) {
+    return Response.json(result, { status: 409 });
+  }
+  return Response.json(result);
+}
+
 /**
  * Copilot 对局操作：accept / skip / reply / ultimate
  * body: { connId, matchId, action, text?, skill? }
@@ -28,24 +35,22 @@ export async function POST(req: Request) {
   }
 
   if (action === "accept") {
-    matcher.accept(matchId, connId);
+    return actionResponse(matcher.accept(matchId, connId));
   } else if (action === "skip") {
-    matcher.skip(matchId, connId);
+    return actionResponse(matcher.skip(matchId, connId));
   } else if (action === "reply") {
     const text = (body.text ?? "").trim();
     if (!text) {
       return Response.json({ ok: false, error: "empty reply" }, { status: 400 });
     }
-    matcher.reply(matchId, connId, text.slice(0, 4000));
+    return actionResponse(matcher.reply(matchId, connId, text.slice(0, 4000)));
   } else if (action === "ultimate") {
     const skill = body.skill;
     if (!skill || !VALID_SKILLS.includes(skill)) {
       return Response.json({ ok: false, error: "invalid skill" }, { status: 400 });
     }
-    matcher.castUltimate(matchId, connId, skill);
+    return actionResponse(matcher.castUltimate(matchId, connId, skill));
   } else {
     return Response.json({ ok: false, error: "unknown action" }, { status: 400 });
   }
-
-  return Response.json({ ok: true });
 }

@@ -28,13 +28,15 @@ export type ServerEvent =
       totalCopilots: number;
     }
   | { type: "copilot:prompt"; matchId: string; promptId: string; text: string }
-  | { type: "copilot:cancelled"; matchId: string };
+  | { type: "copilot:cancelled"; matchId: string; reason: string };
 
 type HumanPrompt = {
   id: string;
   connId: string;
   text: string;
   createdAt: number;
+  disconnectedAt?: number;
+  skippedBy?: Set<string>;
 };
 
 type CopilotSlot = {
@@ -51,47 +53,97 @@ type Match = {
 };
 
 type Send = (ev: ServerEvent) => void;
+type Subscription = { id: string; send: Send };
+type MatcherResult<T extends object = object> =
+  | ({ ok: true } & T)
+  | { ok: false; error: string };
 
 const uid = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+
+const DISCONNECT_GRACE_MS = 30_000;
+const PROMPT_TTL_MS = 5 * 60_000;
+const SLOT_TTL_MS = 2 * 60_000;
 
 class Matcher {
   private humans = new Map<string, HumanPrompt>();
   private copilots = new Map<string, CopilotSlot>();
   private matches = new Map<string, Match>();
-  private subscribers = new Map<string, Send>();
+  private subscribers = new Map<string, Subscription>();
 
   // —— SSE 订阅 ——
 
-  enroll(connId: string, send: Send) {
-    this.subscribers.set(connId, send);
+  enroll(connId: string, send: Send): string {
+    const subscriptionId = uid("s");
+    this.subscribers.set(connId, { id: subscriptionId, send });
+
+    this.pruneStale();
+    for (const p of this.humans.values()) {
+      if (p.connId === connId) {
+        p.disconnectedAt = undefined;
+      }
+    }
+
+    this.tryMatch();
+    this.broadcastQueueInfo();
+    return subscriptionId;
   }
 
-  withdraw(connId: string) {
-    this.subscribers.delete(connId);
+  withdraw(connId: string, subscriptionId?: string) {
+    const current = this.subscribers.get(connId);
+    if (subscriptionId && current && current.id !== subscriptionId) {
+      return;
+    }
 
-    // 把这个 connId 等待中的 prompt 删掉（人类走了，提问不再有效）
-    for (const [pid, p] of this.humans) {
-      if (p.connId === connId) this.humans.delete(pid);
+    this.subscribers.delete(connId);
+    const now = Date.now();
+
+    // 等待中的 human prompt 先保留一个短 grace，避免 SSE 短重连丢题。
+    for (const p of this.humans.values()) {
+      if (p.connId === connId) p.disconnectedAt = now;
     }
 
     // 把这个 connId 的 copilot slot 删掉
     this.copilots.delete(connId);
 
-    // 进行中的 match：另一方收到 copilot:cancelled（如果对方是 copilot 走了）
-    // MVP 简化：直接删 match，不动另一边
     for (const [mid, m] of this.matches) {
-      if (m.copilotConnId === connId || m.prompt.connId === connId) {
+      if (m.copilotConnId === connId) {
         this.matches.delete(mid);
+        if (this.isLive(m.prompt.connId)) {
+          this.humans.set(m.prompt.id, m.prompt);
+          this.emit(m.prompt.connId, {
+            type: "human:matching",
+            promptId: m.prompt.id,
+          });
+        }
+      } else if (m.prompt.connId === connId) {
+        this.matches.delete(mid);
+        if (this.isLive(m.copilotConnId)) {
+          this.emit(m.copilotConnId, {
+            type: "copilot:cancelled",
+            matchId: mid,
+            reason: "human disconnected",
+          });
+          this.copilots.set(m.copilotConnId, {
+            connId: m.copilotConnId,
+            enrolledAt: now,
+          });
+        }
       }
     }
 
+    this.pruneStale();
+    this.tryMatch();
     this.broadcastQueueInfo();
   }
 
   // —— 入队 ——
 
-  enqueueHumanPrompt(connId: string, text: string): { promptId: string } {
+  enqueueHumanPrompt(connId: string, text: string): MatcherResult<{ promptId: string }> {
+    if (!this.isLive(connId)) {
+      return { ok: false, error: "connection is not live" };
+    }
+
     const prompt: HumanPrompt = {
       id: uid("p"),
       connId,
@@ -102,56 +154,94 @@ class Matcher {
     this.emit(connId, { type: "human:matching", promptId: prompt.id });
     this.broadcastQueueInfo();
     this.tryMatch();
-    return { promptId: prompt.id };
+    return { ok: true, promptId: prompt.id };
   }
 
-  enqueueCopilot(connId: string) {
+  enqueueCopilot(connId: string): MatcherResult {
+    if (!this.isLive(connId)) {
+      return { ok: false, error: "connection is not live" };
+    }
+
     this.copilots.set(connId, { connId, enrolledAt: Date.now() });
     this.broadcastQueueInfo();
     this.tryMatch();
+    return { ok: true };
   }
 
-  cancelWaiting(connId: string) {
+  cancelWaiting(connId: string): MatcherResult {
     this.copilots.delete(connId);
     this.broadcastQueueInfo();
+    return { ok: true };
   }
 
   // —— 对局操作 ——
 
-  accept(matchId: string, connId: string) {
+  accept(matchId: string, connId: string): MatcherResult {
     const m = this.matches.get(matchId);
-    if (!m || m.copilotConnId !== connId) return;
+    if (!m || m.copilotConnId !== connId) {
+      return { ok: false, error: "match not found" };
+    }
+    if (!this.isLive(m.prompt.connId)) {
+      this.matches.delete(matchId);
+      return { ok: false, error: "human disconnected" };
+    }
+
     m.state = "answering";
     m.acceptedAt = Date.now();
     this.emit(m.prompt.connId, { type: "human:matched", promptId: m.prompt.id });
+    return { ok: true };
   }
 
-  skip(matchId: string, connId: string) {
+  skip(matchId: string, connId: string): MatcherResult {
     const m = this.matches.get(matchId);
-    if (!m || m.copilotConnId !== connId) return;
+    if (!m || m.copilotConnId !== connId) {
+      return { ok: false, error: "match not found" };
+    }
 
-    // 提问回 humans 队列（末尾，FIFO 不严格但够用）
-    this.humans.set(m.prompt.id, m.prompt);
-    // copilot 回 copilots 队列
-    this.copilots.set(connId, { connId, enrolledAt: Date.now() });
     this.matches.delete(matchId);
 
+    m.prompt.skippedBy ??= new Set<string>();
+    m.prompt.skippedBy.add(connId);
+    if (this.isLive(m.prompt.connId)) {
+      this.humans.set(m.prompt.id, m.prompt);
+      this.emit(m.prompt.connId, {
+        type: "human:matching",
+        promptId: m.prompt.id,
+      });
+    }
+    if (this.isLive(connId)) {
+      this.copilots.set(connId, { connId, enrolledAt: Date.now() });
+    }
+
     this.tryMatch();
+    return { ok: true };
   }
 
-  reply(matchId: string, connId: string, text: string) {
+  reply(matchId: string, connId: string, text: string): MatcherResult {
     const m = this.matches.get(matchId);
-    if (!m || m.copilotConnId !== connId) return;
+    if (!m || m.copilotConnId !== connId) {
+      return { ok: false, error: "match not found" };
+    }
+    if (!this.isLive(m.prompt.connId)) {
+      this.matches.delete(matchId);
+      return { ok: false, error: "human disconnected" };
+    }
 
-    this.emit(m.prompt.connId, {
+    const delivered = this.emit(m.prompt.connId, {
       type: "human:reply",
       promptId: m.prompt.id,
       text,
       thinking: true,
     });
+    if (!delivered) {
+      this.matches.delete(matchId);
+      return { ok: false, error: "human disconnected" };
+    }
+
     this.matches.delete(matchId);
     this.humans.delete(m.prompt.id);
     // 不自动 re-enqueue copilot：用户要求手动按按钮进下一轮
+    return { ok: true };
   }
 
   /**
@@ -159,53 +249,40 @@ class Matcher {
    * 校验：必须是该 match 的 copilot 才能放（防作弊）
    * 行为：推送 human:ultimate（含 promptId 让客户端替换占位）+ 删除 match
    */
-  castUltimate(matchId: string, connId: string, skill: SkillId) {
+  castUltimate(matchId: string, connId: string, skill: SkillId): MatcherResult {
     const m = this.matches.get(matchId);
-    if (!m || m.copilotConnId !== connId) return;
-    this.emit(m.prompt.connId, {
+    if (!m || m.copilotConnId !== connId) {
+      return { ok: false, error: "match not found" };
+    }
+    if (!this.isLive(m.prompt.connId)) {
+      this.matches.delete(matchId);
+      return { ok: false, error: "human disconnected" };
+    }
+
+    const delivered = this.emit(m.prompt.connId, {
       type: "human:ultimate",
       promptId: m.prompt.id,
       skill,
     });
+    if (!delivered) {
+      this.matches.delete(matchId);
+      return { ok: false, error: "human disconnected" };
+    }
+
     this.matches.delete(matchId);
     this.humans.delete(m.prompt.id);
+    return { ok: true };
   }
 
   // —— 内部 ——
 
   private tryMatch() {
-    while (this.humans.size > 0 && this.copilots.size > 0) {
-      const prompt = this.humans.values().next().value!;
-      const slot = this.copilots.values().next().value!;
+    this.pruneStale();
 
-      // 不和自己的提问匹配（人类双开兜底）
-      if (prompt.connId === slot.connId) {
-        // 把这个 copilot 临时挪走再匹配下一个；找不到合适的就放弃
-        this.copilots.delete(slot.connId);
-        if (this.copilots.size === 0) {
-          this.copilots.set(slot.connId, slot);
-          return;
-        }
-        const next = this.copilots.values().next().value!;
-        this.copilots.delete(next.connId);
-        // 把原 slot 还回去（保留在队列尾）
-        this.copilots.set(slot.connId, slot);
-        this.humans.delete(prompt.id);
-        const match: Match = {
-          id: uid("m"),
-          prompt,
-          copilotConnId: next.connId,
-          state: "received",
-        };
-        this.matches.set(match.id, match);
-        this.emit(next.connId, {
-          type: "copilot:prompt",
-          matchId: match.id,
-          promptId: prompt.id,
-          text: prompt.text,
-        });
-        continue;
-      }
+    while (this.humans.size > 0 && this.copilots.size > 0) {
+      const pair = this.findMatchablePair();
+      if (!pair) break;
+      const { prompt, slot } = pair;
 
       this.humans.delete(prompt.id);
       this.copilots.delete(slot.connId);
@@ -215,24 +292,77 @@ class Matcher {
         copilotConnId: slot.connId,
         state: "received",
       };
-      this.matches.set(match.id, match);
-      this.emit(slot.connId, {
+      const delivered = this.emit(slot.connId, {
         type: "copilot:prompt",
         matchId: match.id,
         promptId: prompt.id,
         text: prompt.text,
       });
+      if (!delivered) {
+        this.subscribers.delete(slot.connId);
+        this.humans.set(prompt.id, prompt);
+        continue;
+      }
+      this.matches.set(match.id, match);
     }
     this.broadcastQueueInfo();
   }
 
-  private emit(connId: string, ev: ServerEvent) {
-    const send = this.subscribers.get(connId);
-    if (!send) return; // 没订阅就丢弃（客户端断开/未连上）
+  private emit(connId: string, ev: ServerEvent): boolean {
+    const subscription = this.subscribers.get(connId);
+    if (!subscription) return false;
     try {
-      send(ev);
+      subscription.send(ev);
+      return true;
     } catch {
       this.subscribers.delete(connId);
+      return false;
+    }
+  }
+
+  private isLive(connId: string): boolean {
+    return this.subscribers.has(connId);
+  }
+
+  private findMatchablePair():
+    | { prompt: HumanPrompt; slot: CopilotSlot }
+    | null {
+    for (const prompt of this.humans.values()) {
+      if (!this.isPromptMatchable(prompt)) continue;
+
+      for (const slot of this.copilots.values()) {
+        if (!this.isLive(slot.connId)) continue;
+        if (slot.connId === prompt.connId) continue;
+        if (prompt.skippedBy?.has(slot.connId)) continue;
+        return { prompt, slot };
+      }
+    }
+    return null;
+  }
+
+  private isPromptMatchable(prompt: HumanPrompt): boolean {
+    if (!this.isLive(prompt.connId)) return false;
+    if (prompt.disconnectedAt) return false;
+    return true;
+  }
+
+  private pruneStale() {
+    const now = Date.now();
+
+    for (const [pid, p] of this.humans) {
+      const tooOld = now - p.createdAt > PROMPT_TTL_MS;
+      const disconnectedTooLong =
+        p.disconnectedAt !== undefined &&
+        now - p.disconnectedAt > DISCONNECT_GRACE_MS;
+      if (tooOld || disconnectedTooLong) {
+        this.humans.delete(pid);
+      }
+    }
+
+    for (const [connId, c] of this.copilots) {
+      if (!this.isLive(connId) || now - c.enrolledAt > SLOT_TTL_MS) {
+        this.copilots.delete(connId);
+      }
     }
   }
 
@@ -252,11 +382,20 @@ class Matcher {
    * totalHumans/totalCopilots: 全局正在等待的人数
    */
   private broadcastQueueInfo() {
-    if (this.humans.size === 0 && this.copilots.size === 0) return;
-    const totalH = this.humans.size;
-    const totalC = this.copilots.size;
+    this.pruneStale();
+
+    const liveHumans = [...this.humans.values()].filter((p) =>
+      this.isPromptMatchable(p)
+    );
+    const liveCopilots = [...this.copilots.values()].filter((c) =>
+      this.isLive(c.connId)
+    );
+
+    if (liveHumans.length === 0 && liveCopilots.length === 0) return;
+    const totalH = liveHumans.length;
+    const totalC = liveCopilots.length;
     let idx = 0;
-    for (const p of this.humans.values()) {
+    for (const p of liveHumans) {
       this.emit(p.connId, {
         type: "queue-info",
         humansAhead: idx,
@@ -265,7 +404,7 @@ class Matcher {
       });
       idx++;
     }
-    for (const c of this.copilots.values()) {
+    for (const c of liveCopilots) {
       this.emit(c.connId, {
         type: "queue-info",
         // copilot 没有"前面"概念，给 0；consumer 关心 totalHumans（多少 prompt 等接）

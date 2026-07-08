@@ -19,7 +19,9 @@ export default function PlayPage({
 }) {
   return (
     <Suspense
-      fallback={<div className="p-8 text-[#008f00]">// loading session...</div>}
+      fallback={
+        <div className="p-8 text-[#008f00]">{"// loading session..."}</div>
+      }
     >
       <PlayInner searchParams={searchParams} />
     </Suspense>

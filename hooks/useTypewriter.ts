@@ -14,22 +14,27 @@ import { useEffect, useRef, useState } from "react";
  *   skip() 可以一次性跳到末尾
  */
 export function useTypewriter(text: string, speed = 30, start = true) {
-  const [output, setOutput] = useState("");
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState({
+    text,
+    output: start ? "" : text,
+    done: !start,
+  });
   const iRef = useRef(0);
 
   useEffect(() => {
     if (!start) return;
     iRef.current = 0;
-    setOutput("");
-    setDone(false);
 
     const id = setInterval(() => {
       iRef.current += 1;
-      setOutput(text.slice(0, iRef.current));
+      const done = iRef.current >= text.length;
+      setState({
+        text,
+        output: text.slice(0, iRef.current),
+        done,
+      });
       if (iRef.current >= text.length) {
         clearInterval(id);
-        setDone(true);
       }
     }, speed);
 
@@ -37,9 +42,11 @@ export function useTypewriter(text: string, speed = 30, start = true) {
   }, [text, speed, start]);
 
   const skip = () => {
-    setOutput(text);
-    setDone(true);
+    setState({ text, output: text, done: true });
   };
+
+  const output = state.text === text ? state.output : start ? "" : text;
+  const done = state.text === text ? state.done : !start;
 
   return { output, done, skip };
 }

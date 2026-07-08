@@ -73,9 +73,9 @@ export function useIdleRecovery(onRecover: () => void) {
     // 1) 从 localStorage 加载真实 recovered 值（client only）
     // 2) 初始化 lastRecoverAt（render 期不能调 Date.now()）
     const fresh = load();
-    setRecoveredToday(fresh.recovered);
     knownRecoveredRef.current = fresh.recovered;
     lastRecoverAtRef.current = Date.now();
+    const hydrateId = setTimeout(() => setRecoveredToday(fresh.recovered), 0);
 
     const id = setInterval(() => {
       const fresh = load();
@@ -118,7 +118,10 @@ export function useIdleRecovery(onRecover: () => void) {
         setNextInMs(remaining);
       }
     }, 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(hydrateId);
+      clearInterval(id);
+    };
   }, []);
 
   return {
