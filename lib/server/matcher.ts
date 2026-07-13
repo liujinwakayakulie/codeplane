@@ -15,6 +15,7 @@
 
 import type { SkillId } from "@/lib/skills";
 import {
+  generateStandbyHumanPrompt,
   generateStandbyCopilotReply,
   isStandbyCopilotConfigured,
 } from "@/lib/server/standbyCopilot";
@@ -45,6 +46,7 @@ type HumanPrompt = {
   connId: string;
   text: string;
   createdAt: number;
+  source: "human" | "standby-ai";
   disconnectedAt?: number;
   skippedBy?: Set<string>;
 };
@@ -78,6 +80,7 @@ const AI_FALLBACK_AFTER_MS = 20_000;
 const AI_FALLBACK_RATE_WINDOW_MS = 60 * 60_000;
 const DEFAULT_AI_FALLBACK_PER_CONN_HOUR = 5;
 const DEFAULT_AI_FALLBACK_MAX_CONCURRENT = 2;
+const STANDBY_PROMPT_CONN_ID = "__standby_prompt__";
 
 function numberFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -108,6 +111,14 @@ function aiFallbackAfterMs(): number {
   return numberFromEnv("AI_FALLBACK_AFTER_MS", AI_FALLBACK_AFTER_MS);
 }
 
+function aiPromptAfterMs(): number {
+  return numberFromEnv("AI_PROMPT_AFTER_MS", aiFallbackAfterMs());
+}
+
+function isStandbyPrompt(prompt: HumanPrompt): boolean {
+  return prompt.source === "standby-ai";
+}
+
 type FallbackTarget = {
   prompt: HumanPrompt;
   matchId?: string;
@@ -120,6 +131,8 @@ class Matcher {
   private matches = new Map<string, Match>();
   private subscribers = new Map<string, Subscription>();
   private aiFallbackTimers?: Map<string, ReturnType<typeof setTimeout>>;
+  private aiPromptTimers?: Map<string, ReturnType<typeof setTimeout>>;
+  private aiPromptReservations?: Set<string>;
   private aiFallbackHits?: Map<string, number[]>;
   private aiFallbackInFlight?: number;
 
@@ -157,11 +170,13 @@ class Matcher {
 
     // 把这个 connId 的 copilot slot 删掉
     this.copilots.delete(connId);
+    this.clearAiPrompt(connId);
+    this.aiPromptReservations?.delete(connId);
 
     for (const [mid, m] of this.matches) {
       if (m.copilotConnId === connId) {
         this.matches.delete(mid);
-        if (this.isLive(m.prompt.connId)) {
+        if (!isStandbyPrompt(m.prompt) && this.isLive(m.prompt.connId)) {
           this.humans.set(m.prompt.id, m.prompt);
           this.emit(m.prompt.connId, {
             type: "human:matching",
@@ -181,6 +196,7 @@ class Matcher {
             connId: m.copilotConnId,
             enrolledAt: now,
           });
+          this.scheduleAiPrompt(m.copilotConnId);
         }
       }
     }
@@ -202,6 +218,7 @@ class Matcher {
       connId,
       text,
       createdAt: Date.now(),
+      source: "human",
     };
     this.humans.set(prompt.id, prompt);
     this.emit(connId, { type: "human:matching", promptId: prompt.id });
@@ -217,6 +234,7 @@ class Matcher {
     }
 
     this.copilots.set(connId, { connId, enrolledAt: Date.now() });
+    this.scheduleAiPrompt(connId);
     this.broadcastQueueInfo();
     this.tryMatch();
     return { ok: true };
@@ -224,6 +242,8 @@ class Matcher {
 
   cancelWaiting(connId: string): MatcherResult {
     this.copilots.delete(connId);
+    this.clearAiPrompt(connId);
+    this.aiPromptReservations?.delete(connId);
     this.broadcastQueueInfo();
     return { ok: true };
   }
@@ -235,14 +255,19 @@ class Matcher {
     if (!m || m.copilotConnId !== connId) {
       return { ok: false, error: "match not found" };
     }
-    if (!this.isLive(m.prompt.connId)) {
+    if (!isStandbyPrompt(m.prompt) && !this.isLive(m.prompt.connId)) {
       this.matches.delete(matchId);
       return { ok: false, error: "human disconnected" };
     }
 
     m.state = "answering";
     m.acceptedAt = Date.now();
-    this.emit(m.prompt.connId, { type: "human:matched", promptId: m.prompt.id });
+    if (!isStandbyPrompt(m.prompt)) {
+      this.emit(m.prompt.connId, {
+        type: "human:matched",
+        promptId: m.prompt.id,
+      });
+    }
     return { ok: true };
   }
 
@@ -256,7 +281,7 @@ class Matcher {
 
     m.prompt.skippedBy ??= new Set<string>();
     m.prompt.skippedBy.add(connId);
-    if (this.isLive(m.prompt.connId)) {
+    if (!isStandbyPrompt(m.prompt) && this.isLive(m.prompt.connId)) {
       this.humans.set(m.prompt.id, m.prompt);
       this.emit(m.prompt.connId, {
         type: "human:matching",
@@ -265,6 +290,7 @@ class Matcher {
     }
     if (this.isLive(connId)) {
       this.copilots.set(connId, { connId, enrolledAt: Date.now() });
+      this.scheduleAiPrompt(connId);
     }
 
     this.tryMatch();
@@ -276,9 +302,14 @@ class Matcher {
     if (!m || m.copilotConnId !== connId) {
       return { ok: false, error: "match not found" };
     }
-    if (!this.isLive(m.prompt.connId)) {
+    if (!isStandbyPrompt(m.prompt) && !this.isLive(m.prompt.connId)) {
       this.matches.delete(matchId);
       return { ok: false, error: "human disconnected" };
+    }
+
+    if (isStandbyPrompt(m.prompt)) {
+      this.matches.delete(matchId);
+      return { ok: true };
     }
 
     const delivered = this.emit(m.prompt.connId, {
@@ -310,9 +341,14 @@ class Matcher {
     if (!m || m.copilotConnId !== connId) {
       return { ok: false, error: "match not found" };
     }
-    if (!this.isLive(m.prompt.connId)) {
+    if (!isStandbyPrompt(m.prompt) && !this.isLive(m.prompt.connId)) {
       this.matches.delete(matchId);
       return { ok: false, error: "human disconnected" };
+    }
+
+    if (isStandbyPrompt(m.prompt)) {
+      this.matches.delete(matchId);
+      return { ok: true };
     }
 
     const delivered = this.emit(m.prompt.connId, {
@@ -335,6 +371,8 @@ class Matcher {
 
   private ensureAiFallbackState() {
     this.aiFallbackTimers ??= new Map<string, ReturnType<typeof setTimeout>>();
+    this.aiPromptTimers ??= new Map<string, ReturnType<typeof setTimeout>>();
+    this.aiPromptReservations ??= new Set<string>();
     this.aiFallbackHits ??= new Map<string, number[]>();
     this.aiFallbackInFlight ??= 0;
   }
@@ -355,6 +393,25 @@ class Matcher {
     const timer = this.aiFallbackTimers?.get(promptId);
     if (timer) clearTimeout(timer);
     this.aiFallbackTimers?.delete(promptId);
+  }
+
+  private scheduleAiPrompt(connId: string) {
+    if (!aiFallbackEnabled()) return;
+    if (!this.copilots.has(connId) || !this.isLive(connId)) return;
+
+    this.ensureAiFallbackState();
+    this.clearAiPrompt(connId);
+    const timer = setTimeout(() => {
+      void this.runAiPrompt(connId);
+    }, aiPromptAfterMs());
+    this.aiPromptTimers?.set(connId, timer);
+  }
+
+  private clearAiPrompt(connId: string) {
+    this.ensureAiFallbackState();
+    const timer = this.aiPromptTimers?.get(connId);
+    if (timer) clearTimeout(timer);
+    this.aiPromptTimers?.delete(connId);
   }
 
   private reservePromptForAiFallback(promptId: string): FallbackTarget | null {
@@ -380,6 +437,7 @@ class Matcher {
           connId: match.copilotConnId,
           enrolledAt: Date.now(),
         });
+        this.scheduleAiPrompt(match.copilotConnId);
       }
       return {
         prompt: match.prompt,
@@ -477,6 +535,73 @@ class Matcher {
     }
   }
 
+  private async runAiPrompt(connId: string) {
+    this.ensureAiFallbackState();
+    this.aiPromptTimers?.delete(connId);
+
+    if (!aiFallbackEnabled()) return;
+
+    const slot = this.copilots.get(connId);
+    if (!slot || !this.isLive(connId)) return;
+
+    this.tryMatch();
+    if (!this.copilots.has(connId)) return;
+    if (this.aiPromptReservations?.has(connId)) return;
+
+    if (!this.canUseAiFallback(connId)) return;
+
+    if ((this.aiFallbackInFlight ?? 0) >= aiFallbackMaxConcurrent()) {
+      this.scheduleAiPrompt(connId);
+      return;
+    }
+
+    this.copilots.delete(connId);
+    this.aiPromptReservations?.add(connId);
+    this.aiFallbackInFlight = (this.aiFallbackInFlight ?? 0) + 1;
+    this.broadcastQueueInfo();
+
+    try {
+      const generated = await generateStandbyHumanPrompt();
+      if (!this.isLive(connId)) return;
+      if (!this.aiPromptReservations?.has(connId)) return;
+
+      const prompt: HumanPrompt = {
+        id: uid("ap"),
+        connId: STANDBY_PROMPT_CONN_ID,
+        text: generated.text.slice(0, 2000),
+        createdAt: Date.now(),
+        source: "standby-ai",
+      };
+      const match: Match = {
+        id: uid("m"),
+        prompt,
+        copilotConnId: connId,
+        state: "received",
+      };
+      const delivered = this.emit(connId, {
+        type: "copilot:prompt",
+        matchId: match.id,
+        promptId: prompt.id,
+        text: prompt.text,
+      });
+      if (!delivered) {
+        this.subscribers.delete(connId);
+        return;
+      }
+      this.matches.set(match.id, match);
+    } catch (e) {
+      console.error("[standby prompt failed]", e);
+      if (this.isLive(connId) && this.aiPromptReservations?.has(connId)) {
+        this.copilots.set(connId, { connId, enrolledAt: Date.now() });
+        this.scheduleAiPrompt(connId);
+      }
+    } finally {
+      this.aiPromptReservations?.delete(connId);
+      this.aiFallbackInFlight = Math.max(0, (this.aiFallbackInFlight ?? 1) - 1);
+      this.broadcastQueueInfo();
+    }
+  }
+
   private tryMatch() {
     this.pruneStale();
 
@@ -487,6 +612,7 @@ class Matcher {
 
       this.humans.delete(prompt.id);
       this.copilots.delete(slot.connId);
+      this.clearAiPrompt(slot.connId);
       const match: Match = {
         id: uid("m"),
         prompt,
@@ -564,6 +690,7 @@ class Matcher {
     for (const [connId, c] of this.copilots) {
       if (!this.isLive(connId) || now - c.enrolledAt > SLOT_TTL_MS) {
         this.copilots.delete(connId);
+        this.clearAiPrompt(connId);
       }
     }
   }
@@ -577,6 +704,8 @@ class Matcher {
       matches: this.matches.size,
       subscribers: this.subscribers.size,
       aiFallbackTimers: this.aiFallbackTimers?.size ?? 0,
+      aiPromptTimers: this.aiPromptTimers?.size ?? 0,
+      aiPromptReservations: this.aiPromptReservations?.size ?? 0,
       aiFallbackInFlight: this.aiFallbackInFlight ?? 0,
     };
   }
