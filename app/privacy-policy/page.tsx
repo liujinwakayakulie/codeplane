@@ -19,8 +19,8 @@ export default function PrivacyPolicyPage() {
       <LegalP>
         We hate &quot;trading privacy for convenience&quot; too. codingplane
         is designed to: <strong>no accounts, no tracking, no analytics</strong>.
-        When real matching ships we&apos;ll update this doc — that&apos;s when
-        real data handling kicks in.
+        The server routes live game messages and only uses third-party AI when
+        the standby copilot fallback needs to answer an unmatched prompt.
       </LegalP>
 
       <LegalSection title="What we collect">
@@ -35,9 +35,12 @@ export default function PrivacyPolicyPage() {
           No analytics, no Google Analytics, no third-party trackers.
         </LegalItem>
         <LegalItem>
-          Conversation content never leaves your browser at this stage. The
-          server only routes messages between players in real time and
-          doesn&apos;t log them.
+          Conversation content passes through the server for real-time routing,
+          but we don&apos;t persist or log it as an application feature.
+        </LegalItem>
+        <LegalItem>
+          If no human copilot replies in time, your prompt may be sent to our
+          standby AI provider (Mimo) to generate a fallback reply.
         </LegalItem>
       </LegalSection>
 
@@ -56,9 +59,10 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="What you generate">
         <LegalItem>
-          Your conversation text: persisted only in your own browser&apos;s
-          IndexedDB. Refresh or clear storage and it&apos;s gone. We never
-          receive it server-side.
+          Your conversation history: persisted only in your own browser&apos;s
+          IndexedDB. Refresh or clear storage and it&apos;s gone. The live prompt
+          still travels through the server so the game can route it, and may be
+          forwarded to Mimo only when standby AI fallback is used.
         </LegalItem>
         <LegalItem>
           PNG screenshots you export are generated locally in your browser and

@@ -144,7 +144,7 @@ export function CopilotStation({
     );
   }
 
-  // —— received / answering：上方滚动问题，底部固定操作区 ——
+  // —— received / answering：上方滚动问题，必要操作贴近问题区 ——
 
   // 问题卡（可单独抽组件，但只这两处用，内联）
   const promptCard = (
@@ -167,29 +167,33 @@ export function CopilotStation({
   if (state === "received") {
     return (
       <div className="flex flex-col h-full min-h-0">
-        <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0">{promptCard}</div>
-        <div className="border-t border-[#008f00] px-3 py-2 flex items-center gap-3 text-sm shrink-0">
-          <button
-            type="button"
-            onClick={onAccept}
-            className="border border-[#00ff41] text-[#00ff41] px-3 py-1.5 hover:bg-[#00ff41]/10 transition-colors"
-          >
-            ✓ accept
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            className="border border-[#008f00] text-[#008f00] px-3 py-1.5 hover:text-[#ff0033] hover:border-[#ff0033]/50 transition-colors"
-          >
-            ✗ skip
-          </button>
-          <span
-            className={`ml-auto tabular-nums text-xs ${
-              countdown <= 5 ? "text-[#ff0033] animate-pulse" : "text-[#008f00]"
-            }`}
-          >
-            ⏱ {countdown}s
-          </span>
+        <div className="flex-1 overflow-y-auto px-3 py-3 min-h-0">
+          {promptCard}
+          <div className="-mt-px border-x border-b border-[#008f00] bg-black px-3 py-2 flex items-center gap-3 text-sm">
+            <button
+              type="button"
+              onClick={onAccept}
+              className="border border-[#00ff41] text-[#00ff41] px-3 py-1.5 hover:bg-[#00ff41]/10 transition-colors"
+            >
+              ✓ accept
+            </button>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="border border-[#008f00] text-[#008f00] px-3 py-1.5 hover:text-[#ff0033] hover:border-[#ff0033]/50 transition-colors"
+            >
+              ✗ skip
+            </button>
+            <span
+              className={`ml-auto tabular-nums text-xs ${
+                countdown <= 5
+                  ? "text-[#ff0033] animate-pulse"
+                  : "text-[#008f00]"
+              }`}
+            >
+              ⏱ {countdown}s
+            </span>
+          </div>
         </div>
       </div>
     );

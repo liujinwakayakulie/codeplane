@@ -28,8 +28,8 @@ export default function TermsOfServicePage() {
           each other. <strong>For entertainment only.</strong>
         </LegalItem>
         <LegalItem>
-          All &quot;AI replies&quot; at this stage are written by other humans
-          in real time, not by any actual model.
+          Replies are part of the game flow and are for entertainment, not
+          professional advice.
         </LegalItem>
         <LegalItem>
           No accounts, no payments, no NFTs, no airdrops.

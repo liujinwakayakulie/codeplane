@@ -14,12 +14,22 @@
  */
 
 import type { SkillId } from "@/lib/skills";
+import {
+  generateStandbyCopilotReply,
+  isStandbyCopilotConfigured,
+} from "@/lib/server/standbyCopilot";
 
 export type ServerEvent =
   | { type: "connected"; connId: string }
   | { type: "human:matching"; promptId: string }
   | { type: "human:matched"; promptId: string }
-  | { type: "human:reply"; promptId: string; text: string; thinking: boolean }
+  | {
+      type: "human:reply";
+      promptId: string;
+      text: string;
+      thinking: boolean;
+      source?: "human" | "standby-ai";
+    }
   | { type: "human:ultimate"; promptId: string; skill: SkillId }
   | {
       type: "queue-info";
@@ -64,12 +74,54 @@ const uid = (prefix: string) =>
 const DISCONNECT_GRACE_MS = 30_000;
 const PROMPT_TTL_MS = 5 * 60_000;
 const SLOT_TTL_MS = 2 * 60_000;
+const AI_FALLBACK_AFTER_MS = 20_000;
+const AI_FALLBACK_RATE_WINDOW_MS = 60 * 60_000;
+const DEFAULT_AI_FALLBACK_PER_CONN_HOUR = 5;
+const DEFAULT_AI_FALLBACK_MAX_CONCURRENT = 2;
+
+function numberFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function aiFallbackEnabled(): boolean {
+  return process.env.AI_FALLBACK_ENABLED !== "false" && isStandbyCopilotConfigured();
+}
+
+function aiFallbackPerConnHour(): number {
+  return numberFromEnv(
+    "AI_FALLBACK_PER_CONN_HOUR",
+    DEFAULT_AI_FALLBACK_PER_CONN_HOUR
+  );
+}
+
+function aiFallbackMaxConcurrent(): number {
+  return numberFromEnv(
+    "AI_FALLBACK_MAX_CONCURRENT",
+    DEFAULT_AI_FALLBACK_MAX_CONCURRENT
+  );
+}
+
+function aiFallbackAfterMs(): number {
+  return numberFromEnv("AI_FALLBACK_AFTER_MS", AI_FALLBACK_AFTER_MS);
+}
+
+type FallbackTarget = {
+  prompt: HumanPrompt;
+  matchId?: string;
+  copilotConnId?: string;
+};
 
 class Matcher {
   private humans = new Map<string, HumanPrompt>();
   private copilots = new Map<string, CopilotSlot>();
   private matches = new Map<string, Match>();
   private subscribers = new Map<string, Subscription>();
+  private aiFallbackTimers?: Map<string, ReturnType<typeof setTimeout>>;
+  private aiFallbackHits?: Map<string, number[]>;
+  private aiFallbackInFlight?: number;
 
   // —— SSE 订阅 ——
 
@@ -118,6 +170,7 @@ class Matcher {
         }
       } else if (m.prompt.connId === connId) {
         this.matches.delete(mid);
+        this.clearAiFallback(m.prompt.id);
         if (this.isLive(m.copilotConnId)) {
           this.emit(m.copilotConnId, {
             type: "copilot:cancelled",
@@ -152,6 +205,7 @@ class Matcher {
     };
     this.humans.set(prompt.id, prompt);
     this.emit(connId, { type: "human:matching", promptId: prompt.id });
+    this.scheduleAiFallback(prompt.id);
     this.broadcastQueueInfo();
     this.tryMatch();
     return { ok: true, promptId: prompt.id };
@@ -232,6 +286,7 @@ class Matcher {
       promptId: m.prompt.id,
       text,
       thinking: true,
+      source: "human",
     });
     if (!delivered) {
       this.matches.delete(matchId);
@@ -240,6 +295,7 @@ class Matcher {
 
     this.matches.delete(matchId);
     this.humans.delete(m.prompt.id);
+    this.clearAiFallback(m.prompt.id);
     // 不自动 re-enqueue copilot：用户要求手动按按钮进下一轮
     return { ok: true };
   }
@@ -271,10 +327,155 @@ class Matcher {
 
     this.matches.delete(matchId);
     this.humans.delete(m.prompt.id);
+    this.clearAiFallback(m.prompt.id);
     return { ok: true };
   }
 
   // —— 内部 ——
+
+  private ensureAiFallbackState() {
+    this.aiFallbackTimers ??= new Map<string, ReturnType<typeof setTimeout>>();
+    this.aiFallbackHits ??= new Map<string, number[]>();
+    this.aiFallbackInFlight ??= 0;
+  }
+
+  private scheduleAiFallback(promptId: string) {
+    if (!aiFallbackEnabled()) return;
+
+    this.ensureAiFallbackState();
+    this.clearAiFallback(promptId);
+    const timer = setTimeout(() => {
+      void this.runAiFallback(promptId);
+    }, aiFallbackAfterMs());
+    this.aiFallbackTimers?.set(promptId, timer);
+  }
+
+  private clearAiFallback(promptId: string) {
+    this.ensureAiFallbackState();
+    const timer = this.aiFallbackTimers?.get(promptId);
+    if (timer) clearTimeout(timer);
+    this.aiFallbackTimers?.delete(promptId);
+  }
+
+  private reservePromptForAiFallback(promptId: string): FallbackTarget | null {
+    const queuedPrompt = this.humans.get(promptId);
+    if (queuedPrompt) {
+      if (!this.isPromptMatchable(queuedPrompt)) return null;
+      this.humans.delete(promptId);
+      return { prompt: queuedPrompt };
+    }
+
+    for (const [matchId, match] of this.matches) {
+      if (match.prompt.id !== promptId) continue;
+      if (!this.isLive(match.prompt.connId)) return null;
+
+      this.matches.delete(matchId);
+      if (this.isLive(match.copilotConnId)) {
+        this.emit(match.copilotConnId, {
+          type: "copilot:cancelled",
+          matchId,
+          reason: "round closed",
+        });
+        this.copilots.set(match.copilotConnId, {
+          connId: match.copilotConnId,
+          enrolledAt: Date.now(),
+        });
+      }
+      return {
+        prompt: match.prompt,
+        matchId,
+        copilotConnId: match.copilotConnId,
+      };
+    }
+
+    return null;
+  }
+
+  private canUseAiFallback(connId: string): boolean {
+    this.ensureAiFallbackState();
+    const now = Date.now();
+    const windowStart = now - AI_FALLBACK_RATE_WINDOW_MS;
+    const hits = (this.aiFallbackHits?.get(connId) ?? []).filter(
+      (hit) => hit >= windowStart
+    );
+
+    if (hits.length >= aiFallbackPerConnHour()) {
+      this.aiFallbackHits?.set(connId, hits);
+      return false;
+    }
+
+    hits.push(now);
+    this.aiFallbackHits?.set(connId, hits);
+    return true;
+  }
+
+  private restorePromptAfterAiFallback(prompt: HumanPrompt) {
+    if (!this.isPromptMatchable(prompt)) {
+      this.clearAiFallback(prompt.id);
+      return;
+    }
+
+    this.humans.set(prompt.id, prompt);
+    this.emit(prompt.connId, {
+      type: "human:matching",
+      promptId: prompt.id,
+    });
+    this.broadcastQueueInfo();
+    this.tryMatch();
+  }
+
+  private async runAiFallback(promptId: string) {
+    this.ensureAiFallbackState();
+    this.aiFallbackTimers?.delete(promptId);
+
+    if (!aiFallbackEnabled()) return;
+
+    const target = this.reservePromptForAiFallback(promptId);
+    if (!target) return;
+
+    const { prompt } = target;
+    if (!this.isLive(prompt.connId)) return;
+
+    if (!this.canUseAiFallback(prompt.connId)) {
+      this.restorePromptAfterAiFallback(prompt);
+      return;
+    }
+
+    if ((this.aiFallbackInFlight ?? 0) >= aiFallbackMaxConcurrent()) {
+      this.restorePromptAfterAiFallback(prompt);
+      return;
+    }
+
+    this.aiFallbackInFlight = (this.aiFallbackInFlight ?? 0) + 1;
+    this.emit(prompt.connId, {
+      type: "human:matched",
+      promptId: prompt.id,
+    });
+    this.broadcastQueueInfo();
+
+    try {
+      const reply = await generateStandbyCopilotReply(prompt.text);
+      if (!this.isLive(prompt.connId)) return;
+
+      const delivered = this.emit(prompt.connId, {
+        type: "human:reply",
+        promptId: prompt.id,
+        text: reply.text,
+        thinking: true,
+        source: "standby-ai",
+      });
+      if (!delivered) return;
+
+      this.humans.delete(prompt.id);
+      this.clearAiFallback(prompt.id);
+    } catch (e) {
+      console.error("[standby copilot failed]", e);
+      this.restorePromptAfterAiFallback(prompt);
+    } finally {
+      this.aiFallbackInFlight = Math.max(0, (this.aiFallbackInFlight ?? 1) - 1);
+      this.broadcastQueueInfo();
+    }
+  }
 
   private tryMatch() {
     this.pruneStale();
@@ -356,6 +557,7 @@ class Matcher {
         now - p.disconnectedAt > DISCONNECT_GRACE_MS;
       if (tooOld || disconnectedTooLong) {
         this.humans.delete(pid);
+        this.clearAiFallback(pid);
       }
     }
 
@@ -368,11 +570,14 @@ class Matcher {
 
   /** dev 用：观察内部状态 */
   debug() {
+    this.ensureAiFallbackState();
     return {
       humans: this.humans.size,
       copilots: this.copilots.size,
       matches: this.matches.size,
       subscribers: this.subscribers.size,
+      aiFallbackTimers: this.aiFallbackTimers?.size ?? 0,
+      aiFallbackInFlight: this.aiFallbackInFlight ?? 0,
     };
   }
 
